@@ -171,8 +171,9 @@ initial config を history=[c0], cursor=0 で開始
 ```jsonc
 {
 	"kind": "dfa",
-	"machine": "even-a",        // fixtures/dfa/<name>.json への参照
+	"machine": "even-a",        // 参照する preset の "ファイル名 stem"(下記参照)
 	"input": "aa",
+	"note": "…",                // 任意。この例の説明メモ
 	"initial": { "state": "Even", "rest": ["a", "a"] },
 	"steps": [                  // 各要素は /step の応答(StepResult)
 		{ "fired": { "from": "Even", "read": "a", "to": "Odd" },  "status": "running", "config": { "state": "Odd",  "rest": ["a"] } },
@@ -181,3 +182,12 @@ initial config を history=[c0], cursor=0 で開始
 	]
 }
 ```
+
+各フィールド:
+
+- `kind`: `"dfa"` | `"dtm"`。参照する preset の種別。
+- `machine`: 参照する preset ファイルの **stem(拡張子を除いたファイル名)**。`kind` に応じて `fixtures/dfa/<stem>.json` または `fixtures/dtm/<stem>.json` を指す。例では `"even-a"` → `fixtures/dfa/even-a.json`。preset 内の `name`(表示用の日本語ラベル。例 `"偶数個の a"`)とは別物。
+- `input`: この実行に与えた入力文字列。
+- `note`: 任意。この例の意図を説明するメモ。
+- `initial`: 初期コンフィグ(§3 の規則で `input` から構成したもの)。
+- `steps`: `/step` を繰り返し呼んだときの応答(StepResult)の列。
