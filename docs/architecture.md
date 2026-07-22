@@ -4,7 +4,7 @@ DFA / DTM(決定性チューリング機械)が動く様子を「眺める」た
 
 ## 全体像
 
-実行ロジックは既存の Haskell 実装 [`neutron317/D-Turing-Machine-made-by-haskell`](https://github.com/neutron317/D-Turing-Machine-made-by-haskell) を活用する。UI は TypeScript + React + Vite。ツールチェーンは mise で管理する。
+実行ロジックは既存の Haskell 実装 [`neutron317/D-Turing-Machine-made-by-haskell`](https://github.com/neutron317/D-Turing-Machine-made-by-haskell) を活用する。UI は TypeScript + React + Vite。開発ツールはすべて Docker コンテナ内で完結させ、mise はタスクランナーとして使う。
 
 ```
 [フロント React/Vite]                         [バックエンド Haskell/Scotty]
@@ -51,24 +51,26 @@ DFA / DTM(決定性チューリング機械)が動く様子を「眺める」た
 
 | 分類 | 採用 | 理由 |
 |---|---|---|
-| ツール管理 | mise | ghc/cabal と node/pnpm を一元管理・タスクランナー兼用 |
+| ツール管理 | mise | タスクランナー(実ツールは Docker コンテナ内で完結) |
+| 実行環境 | Docker (compose) | GHC/cabal・lint/format をコンテナ内で実行し再現性を確保 |
 | バックエンド | Haskell + Scotty + aeson | 小さな API に最適・依存が軽い |
 | エンジン | 既存 DFA/DTM を git submodule で取り込み | 原作者の帰属を保持・更新容易 |
 | フロント | Vite + React + TypeScript | 指定どおり |
-| パッケージ管理 | pnpm | 高速・mise で版固定 |
+| パッケージ管理 | pnpm | フロントの依存管理(コンテナ内) |
 | 状態遷移図 | @xyflow/react (React Flow) | ノード編集 + アクティブ状態のハイライト |
 | テープ描画 | 自作 SVG + motion | テープのシフトを滑らかにアニメーション |
 | 再生状態管理 | Zustand | history / cursor / playing / speed を軽量に管理 |
 | API 境界の型安全 | Zod | spec と応答を実行時バリデーション |
 | スタイル | Tailwind CSS v4 | 素早くクリーンな UI |
-| Lint/Format | Biome | 高速・タブインデント既定 |
+| Lint/Format | Biome(JS/TS/JSON)・ormolu/hlint(Haskell) | Haskell は arm64-linux 配布が無く x86_64 を emulation |
 | テスト | Vitest | フロントの単体テスト |
 
 ## リポジトリ構成(予定)
 
 ```
 turing-machine-visualizer/
-├── mise.toml            # tools(ghc,cabal,node,pnpm) + tasks(dev/build/test)
+├── mise.toml            # タスク定義(実ツールは Docker)
+├── docker-compose.yml   # engine(GHC/cabal)/ lint(hlint/ormolu)サービス
 ├── docs/                # 設計ドキュメント(本ファイルほか)
 ├── fixtures/            # 契約の実例(機械 spec・ゴールデントレース)
 ├── engine/              # Haskell バックエンド(cabal プロジェクト)
