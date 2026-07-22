@@ -1,0 +1,15 @@
+{
+	"kind": "dfa",
+	"name": "偶数個の a",
+	"description": "'a' が偶数個のとき受理する DFA。",
+	"machine": {
+		"states": ["Even", "Odd"],
+		"alphabet": ["a"],
+		"start": "Even",
+		"accept": ["Even"],
+		"transitions": [
+			{ "from": "Even", "read": "a", "to": "Odd" },
+			{ "from": "Odd", "read": "a", "to": "Even" }
+		]
+	}
+}

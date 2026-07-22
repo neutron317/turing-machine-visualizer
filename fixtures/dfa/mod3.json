@@ -1,0 +1,19 @@
+{
+	"kind": "dfa",
+	"name": "3 の倍数(2進)",
+	"description": "2進表記が 3 の倍数となる文字列を受理する DFA(アルファベット {0, 1})。状態は 3 で割った余り。",
+	"machine": {
+		"states": ["R0", "R1", "R2"],
+		"alphabet": ["0", "1"],
+		"start": "R0",
+		"accept": ["R0"],
+		"transitions": [
+			{ "from": "R0", "read": "0", "to": "R0" },
+			{ "from": "R0", "read": "1", "to": "R1" },
+			{ "from": "R1", "read": "0", "to": "R2" },
+			{ "from": "R1", "read": "1", "to": "R0" },
+			{ "from": "R2", "read": "0", "to": "R1" },
+			{ "from": "R2", "read": "1", "to": "R2" }
+		]
+	}
+}
