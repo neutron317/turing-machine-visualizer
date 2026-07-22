@@ -31,7 +31,6 @@ module Machine.Spec
   )
 where
 
-import DTM (Move (..))
 import Data.Aeson
   ( FromJSON (..),
     ToJSON (..),
@@ -57,7 +56,12 @@ instance FromJSON Symbol where
     [c] -> pure (Symbol c)
     _ -> fail "記号は1文字の文字列である必要があります"
 
--- Move("L" | "R")。vendored DTM の型に対する orphan instance。
+-- | ヘッドの移動方向。契約では "L" | "R"。
+-- vendored の DTM.Move とは別に契約レイヤで独自定義し、変換は Adapt 層で行う
+-- (vendored 型への orphan instance を避けるため)。
+data Move = L | R
+  deriving (Eq, Show)
+
 instance ToJSON Move where
   toJSON L = String "L"
   toJSON R = String "R"
@@ -315,10 +319,16 @@ instance FromJSON StepDTM where
 -- @/step@ に渡すのは machine のみ。kind はフロントの振り分け用。
 data Fixture a = Fixture
   { fixtureKind :: String,
+    fixtureName :: String,
+    fixtureDescription :: String,
     fixtureMachine :: a
   }
   deriving (Eq, Show)
 
 instance (FromJSON a) => FromJSON (Fixture a) where
   parseJSON = withObject "Fixture" $ \o ->
-    Fixture <$> o .: "kind" <*> o .: "machine"
+    Fixture
+      <$> o .: "kind"
+      <*> o .: "name"
+      <*> o .: "description"
+      <*> o .: "machine"
