@@ -1,0 +1,39 @@
+# エンジンの検証を自動化する。
+# ローカルと同じコマンド(mise タスク経由の docker compose)を実行し、
+# 開発環境と CI の差をなくす。
+#
+# NOTE: 現状は依存を毎回コンパイルするためやや遅い。キャッシュ最適化は今後の課題。
+#       フロント(JS/TS)の CI はステージ4で追加する。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  engine:
+    name: engine (build / test / lint / format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: mise を用意(タスクランナー)
+        uses: jdx/mise-action@v2
+
+      - name: Docker イメージをビルド
+        run: mise run engine:image
+
+      - name: ビルド
+        run: mise run engine:build
+
+      - name: 整形チェック (ormolu)
+        run: mise run engine:fmt-check
+
+      - name: 静的解析 (hlint)
+        run: mise run engine:lint
+
+      - name: テスト
+        run: mise run engine:test
