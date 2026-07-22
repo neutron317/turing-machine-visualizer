@@ -1,0 +1,44 @@
+cabal-version:      2.4
+name:               turing-visualizer
+version:            0.1.0.0
+synopsis:           DFA/DTM ステップ実行エンジン(可視化アプリ用)
+build-type:         Simple
+
+-- 原作者の既存エンジン(submodule)。自作コードと分離し、
+-- -Wall / hlint / ormolu の対象外にするため内部ライブラリにする。
+library dtm-engine
+    hs-source-dirs:   vendor/dtm-engine
+    exposed-modules:  DFA
+                      DTM
+    build-depends:    base >=4.14 && <5
+    default-language: Haskell2010
+
+library
+    hs-source-dirs:   src
+    exposed-modules:  Machine
+    build-depends:    base >=4.14 && <5
+                    , aeson
+                    , bytestring
+                    , containers
+                    , dtm-engine
+                    , text
+    default-language: Haskell2010
+    ghc-options:      -Wall
+
+executable engine-cli
+    hs-source-dirs:   app
+    main-is:          Main.hs
+    build-depends:    base
+                    , turing-visualizer
+    default-language: Haskell2010
+    ghc-options:      -Wall
+
+test-suite spec
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    build-depends:    base
+                    , hspec
+                    , turing-visualizer
+    default-language: Haskell2010
+    ghc-options:      -Wall

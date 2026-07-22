@@ -1,0 +1,3 @@
+[submodule "engine/vendor/dtm-engine"]
+	path = engine/vendor/dtm-engine
+	url = https://github.com/neutron317/D-Turing-Machine-made-by-haskell.git

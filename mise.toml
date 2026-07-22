@@ -1,0 +1,32 @@
+# ツールはすべて Docker コンテナ内に閉じ、mise はタスクランナーとして使う。
+#   - build/test  : engine サービス(公式 haskell イメージ / GHC / cabal, arm64 ネイティブ)
+#   - lint/format : lint サービス(hlint / ormolu。arm64-linux 配布が無いため
+#                   x86_64 版を linux/amd64 で emulation 実行)
+
+[tasks."engine:image"]
+description = "Docker イメージをビルド(engine + lint)"
+run = "docker compose build engine lint"
+
+[tasks."engine:build"]
+description = "エンジンをビルド"
+run = "docker compose run --rm engine cabal build all --enable-tests"
+
+[tasks."engine:test"]
+description = "エンジンのテストを実行"
+run = "docker compose run --rm engine cabal test all"
+
+[tasks."engine:sh"]
+description = "engine コンテナでシェルを開く"
+run = "docker compose run --rm engine bash"
+
+[tasks."engine:fmt"]
+description = "Haskell ソースを ormolu で整形(コンテナ内)"
+run = "docker compose run --rm lint sh -c 'ormolu --mode inplace $(find src app test -name \"*.hs\")'"
+
+[tasks."engine:fmt-check"]
+description = "整形崩れがないか確認(コンテナ内)"
+run = "docker compose run --rm lint sh -c 'ormolu --mode check $(find src app test -name \"*.hs\")'"
+
+[tasks."engine:lint"]
+description = "hlint で静的解析(コンテナ内)"
+run = "docker compose run --rm lint hlint src app test"

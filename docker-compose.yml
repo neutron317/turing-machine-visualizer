@@ -1,0 +1,26 @@
+# 開発環境はすべてコンテナ内で完結させる。
+# 単発コマンドは `docker compose run --rm <service> <cmd>`(mise タスク経由)で実行する。
+services:
+  # ビルド/テスト用: GHC 9.6 + cabal(arm64 ネイティブ)
+  engine:
+    build:
+      context: ./engine
+    working_dir: /work/engine
+    volumes:
+      - .:/work # リポジトリをマウント(ソース・fixtures)
+      - cabal-store:/root/.cabal # 依存キャッシュ(永続)
+      - engine-dist:/work/engine/dist-newstyle # ビルド成果物(永続・ホストFS回避)
+
+  # lint/format 用: hlint + ormolu(最新版)。x86_64 版を linux/amd64 で実行。
+  lint:
+    build:
+      context: ./tools
+      dockerfile: lint.Dockerfile
+    platform: linux/amd64
+    working_dir: /work/engine
+    volumes:
+      - .:/work
+
+volumes:
+  cabal-store:
+  engine-dist:
