@@ -1,0 +1,19 @@
+{
+	"kind": "dfa",
+	"name": "ab で終わる",
+	"description": "\"ab\" で終わる文字列を受理する DFA(アルファベット {a, b})。",
+	"machine": {
+		"states": ["S", "SA", "SAB"],
+		"alphabet": ["a", "b"],
+		"start": "S",
+		"accept": ["SAB"],
+		"transitions": [
+			{ "from": "S", "read": "a", "to": "SA" },
+			{ "from": "S", "read": "b", "to": "S" },
+			{ "from": "SA", "read": "a", "to": "SA" },
+			{ "from": "SA", "read": "b", "to": "SAB" },
+			{ "from": "SAB", "read": "a", "to": "SA" },
+			{ "from": "SAB", "read": "b", "to": "S" }
+		]
+	}
+}

@@ -1,0 +1,37 @@
+{
+	"kind": "dtm",
+	"name": "aⁿbⁿcⁿ",
+	"description": "a^n b^n c^n(n≥0)を受理する DTM。文脈自由言語ではない例。a を X に、b を Y に、c を Z にマークしながら往復する。",
+	"machine": {
+		"states": ["P0", "P1", "P2", "P3", "P4", "PA"],
+		"tapeAlphabet": ["a", "b", "c", "X", "Y", "Z"],
+		"start": "P0",
+		"accept": ["PA"],
+		"transitions": [
+			{ "from": "P0", "read": "a", "to": "P1", "write": "X", "move": "R" },
+			{ "from": "P0", "read": "X", "to": "P0", "write": "X", "move": "R" },
+			{ "from": "P0", "read": "Y", "to": "P4", "write": "Y", "move": "R" },
+			{ "from": "P0", "read": null, "to": "PA", "write": null, "move": "R" },
+
+			{ "from": "P1", "read": "a", "to": "P1", "write": "a", "move": "R" },
+			{ "from": "P1", "read": "X", "to": "P1", "write": "X", "move": "R" },
+			{ "from": "P1", "read": "b", "to": "P2", "write": "Y", "move": "R" },
+			{ "from": "P1", "read": "Y", "to": "P1", "write": "Y", "move": "R" },
+
+			{ "from": "P2", "read": "b", "to": "P2", "write": "b", "move": "R" },
+			{ "from": "P2", "read": "Y", "to": "P2", "write": "Y", "move": "R" },
+			{ "from": "P2", "read": "c", "to": "P3", "write": "Z", "move": "L" },
+			{ "from": "P2", "read": "Z", "to": "P2", "write": "Z", "move": "R" },
+
+			{ "from": "P3", "read": "a", "to": "P3", "write": "a", "move": "L" },
+			{ "from": "P3", "read": "b", "to": "P3", "write": "b", "move": "L" },
+			{ "from": "P3", "read": "Y", "to": "P3", "write": "Y", "move": "L" },
+			{ "from": "P3", "read": "Z", "to": "P3", "write": "Z", "move": "L" },
+			{ "from": "P3", "read": "X", "to": "P0", "write": "X", "move": "R" },
+
+			{ "from": "P4", "read": "Y", "to": "P4", "write": "Y", "move": "R" },
+			{ "from": "P4", "read": "Z", "to": "P4", "write": "Z", "move": "R" },
+			{ "from": "P4", "read": null, "to": "PA", "write": null, "move": "R" }
+		]
+	}
+}

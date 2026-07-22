@@ -1,0 +1,12 @@
+{
+	"kind": "dfa",
+	"machine": "even-a",
+	"input": "aa",
+	"note": "偶数個(2個)の a なので accept。エンジンがこの列を再現できることをテストで確認する。",
+	"initial": { "state": "Even", "rest": ["a", "a"] },
+	"steps": [
+		{ "fired": { "from": "Even", "read": "a", "to": "Odd" }, "status": "running", "config": { "state": "Odd", "rest": ["a"] } },
+		{ "fired": { "from": "Odd", "read": "a", "to": "Even" }, "status": "running", "config": { "state": "Even", "rest": [] } },
+		{ "fired": null, "status": "accept", "config": { "state": "Even", "rest": [] } }
+	]
+}
