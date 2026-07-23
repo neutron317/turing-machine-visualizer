@@ -3,6 +3,7 @@
 services:
   # ビルド/テスト用: GHC 9.6 + cabal(arm64 ネイティブ)
   engine:
+    image: turing-visualizer-engine:dev
     build:
       context: ./engine
     working_dir: /work/engine
@@ -13,6 +14,7 @@ services:
 
   # lint/format 用: hlint + ormolu(最新版)。x86_64 版を linux/amd64 で実行。
   lint:
+    image: turing-visualizer-lint:dev
     build:
       context: ./tools
       dockerfile: lint.Dockerfile
