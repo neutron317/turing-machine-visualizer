@@ -20,11 +20,20 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Buildx をセットアップ
+        uses: docker/setup-buildx-action@v3
+
+      - name: イメージをビルド(GHA レイヤキャッシュで依存を再利用)
+        uses: docker/bake-action@v5
+        with:
+          files: docker-compose.yml
+          load: true
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+
       - name: mise を用意(タスクランナー)
         uses: jdx/mise-action@v2
-
-      - name: Docker イメージをビルド
-        run: mise run engine:image
 
       - name: ビルド
         run: mise run engine:build

@@ -19,3 +19,9 @@ RUN mkdir -p /root/.config/cabal \
  && cabal update
 
 WORKDIR /work/engine
+
+# 依存だけを先にビルドしてイメージ層に焼く。.cabal が変わらない限りこの層は
+# 再利用され、CI(GitHub Actions のレイヤキャッシュ)で依存の再コンパイルを回避できる。
+# ソースは実行時にバインドマウントで渡すため、ここでは .cabal だけを置く。
+COPY turing-visualizer.cabal ./
+RUN cabal build --only-dependencies --enable-tests all
