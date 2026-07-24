@@ -2,10 +2,15 @@
 # ローカルと同じコマンド(make ターゲット経由の docker compose)を実行し、
 # 開発環境と CI の差をなくす。
 #
+# 各ステージ(build / test / lint / format)を matrix で独立ジョブに分け、PR の
+# チェック一覧でどれが落ちたか一目で分かるようにする(fail-fast: false なので
+# 1 つ落ちても他は止めない)。
+#
 # NOTE: 依存は engine/Dockerfile でイメージ層に焼き、docker/bake の GHA レイヤ
-#       キャッシュで再利用する。キャッシュヒット時は依存を再コンパイルせず高速
-#       (初回、または engine/turing-visualizer.cabal 変更時のみ遅い)。
-#       フロント(JS/TS)の CI はステージ4で追加する。
+#       キャッシュ(image ごとに scope 分離)で再利用する。キャッシュヒット時は
+#       依存を再コンパイルせず高速(初回、または engine/turing-visualizer.cabal
+#       変更時のみ遅い)。build/test は engine、lint/format は lint イメージのみ
+#       をビルドする。フロント(JS/TS)の CI はステージ4で追加する。
 name: CI
 
 on:
@@ -14,9 +19,25 @@ on:
   pull_request:
 
 jobs:
-  engine:
-    name: engine (build / test / lint / format)
+  check:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: build
+            target: engine-build
+            image: engine
+          - name: test
+            target: engine-test
+            image: engine
+          - name: lint
+            target: engine-lint
+            image: lint
+          - name: format
+            target: engine-fmt-check
+            image: lint
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,23 +46,15 @@ jobs:
       - name: Buildx をセットアップ
         uses: docker/setup-buildx-action@v3
 
-      - name: イメージをビルド(GHA レイヤキャッシュで依存を再利用)
+      - name: イメージをビルド(${{ matrix.image }} / GHA レイヤキャッシュで依存を再利用)
         uses: docker/bake-action@v5
         with:
           files: docker-compose.yml
+          targets: ${{ matrix.image }}
           load: true
           set: |
-            *.cache-from=type=gha
-            *.cache-to=type=gha,mode=max
+            *.cache-from=type=gha,scope=${{ matrix.image }}
+            *.cache-to=type=gha,mode=max,scope=${{ matrix.image }}
 
-      - name: ビルド
-        run: make engine-build
-
-      - name: 整形チェック (ormolu)
-        run: make engine-fmt-check
-
-      - name: 静的解析 (hlint)
-        run: make engine-lint
-
-      - name: テスト
-        run: make engine-test
+      - name: ${{ matrix.name }}
+        run: make ${{ matrix.target }}
