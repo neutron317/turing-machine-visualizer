@@ -4,7 +4,7 @@ DFA / DTM(決定性チューリング機械)が動く様子を「眺める」た
 
 ## 全体像
 
-実行ロジックは既存の Haskell 実装 [`neutron317/D-Turing-Machine-made-by-haskell`](https://github.com/neutron317/D-Turing-Machine-made-by-haskell) を活用する。UI は TypeScript + React + Vite。開発ツールはすべて Docker コンテナ内で完結させ、mise はタスクランナーとして使う。
+実行ロジックは既存の Haskell 実装 [`neutron317/D-Turing-Machine-made-by-haskell`](https://github.com/neutron317/D-Turing-Machine-made-by-haskell) を活用する。UI は TypeScript + React + Vite。開発ツールはすべて Docker コンテナ内で完結させ、タスクランナーには Make を使う。
 
 ```
 [フロント React/Vite]                         [バックエンド Haskell/Scotty]
@@ -51,7 +51,7 @@ DFA / DTM(決定性チューリング機械)が動く様子を「眺める」た
 
 | 分類 | 採用 | 理由 |
 |---|---|---|
-| ツール管理 | mise | タスクランナー(実ツールは Docker コンテナ内で完結) |
+| タスクランナー | Make | Makefile が docker compose をラップ(実ツールは Docker コンテナ内) |
 | 実行環境 | Docker (compose) | GHC/cabal・lint/format をコンテナ内で実行し再現性を確保 |
 | バックエンド | Haskell + Scotty + aeson | 小さな API に最適・依存が軽い |
 | エンジン | 既存 DFA/DTM を git submodule で取り込み | 原作者の帰属を保持・更新容易 |
@@ -69,7 +69,7 @@ DFA / DTM(決定性チューリング機械)が動く様子を「眺める」た
 
 ```
 turing-machine-visualizer/
-├── mise.toml            # タスク定義(実ツールは Docker)
+├── Makefile             # タスク定義(実ツールは Docker)
 ├── docker-compose.yml   # engine(GHC/cabal)/ lint(hlint/ormolu)サービス
 ├── docs/                # 設計ドキュメント(本ファイルほか)
 ├── fixtures/            # 契約の実例(機械 spec・ゴールデントレース)
