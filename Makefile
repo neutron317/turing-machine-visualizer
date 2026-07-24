@@ -5,6 +5,7 @@
 # 使い方: make <target>(例: make engine-build)。make help で一覧。
 
 COMPOSE := docker compose
+PORT ?= 3000
 
 .PHONY: help engine-image engine-build engine-test engine-sh engine-serve engine-fmt engine-fmt-check engine-lint ci
 
@@ -24,8 +25,8 @@ engine-test: ## エンジンのテストを実行
 engine-sh: ## engine コンテナでシェルを開く
 	$(COMPOSE) run --rm engine bash
 
-engine-serve: ## HTTP サーバを起動(http://localhost:3000。PORT で変更可)
-	$(COMPOSE) run --rm -p 3000:3000 engine cabal run -v0 engine-server
+engine-serve: ## HTTP サーバを起動(既定 localhost:3000。PORT=8080 等で変更可)
+	$(COMPOSE) run --rm -e PORT=$(PORT) -p $(PORT):$(PORT) engine cabal run -v0 engine-server
 
 engine-fmt: ## Haskell ソースを ormolu で整形(コンテナ内)
 	$(COMPOSE) run --rm lint sh -c 'ormolu --mode inplace $$(find src app test -name "*.hs")'
