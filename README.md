@@ -15,7 +15,7 @@ DFA / DTM(決定性チューリング機械)が動く様子を眺めるための
 
 | 分類 | 採用 |
 |---|---|
-| ツール管理 | mise(タスクランナー) |
+| タスクランナー | Make |
 | 実行環境 | Docker (compose) |
 | バックエンド | Haskell + Scotty + aeson |
 | フロント | Vite + React + TypeScript / pnpm |

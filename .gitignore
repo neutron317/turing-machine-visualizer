@@ -2,7 +2,3 @@
 dist-newstyle/
 *.hi
 *.o
-
-# mise ローカル設定
-.mise.local.toml
-mise.local.toml

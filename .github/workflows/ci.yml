@@ -1,5 +1,5 @@
 # エンジンの検証を自動化する。
-# ローカルと同じコマンド(mise タスク経由の docker compose)を実行し、
+# ローカルと同じコマンド(make ターゲット経由の docker compose)を実行し、
 # 開発環境と CI の差をなくす。
 #
 # NOTE: 依存は engine/Dockerfile でイメージ層に焼き、docker/bake の GHA レイヤ
@@ -34,17 +34,14 @@ jobs:
             *.cache-from=type=gha
             *.cache-to=type=gha,mode=max
 
-      - name: mise を用意(タスクランナー)
-        uses: jdx/mise-action@v2
-
       - name: ビルド
-        run: mise run engine:build
+        run: make engine-build
 
       - name: 整形チェック (ormolu)
-        run: mise run engine:fmt-check
+        run: make engine-fmt-check
 
       - name: 静的解析 (hlint)
-        run: mise run engine:lint
+        run: make engine-lint
 
       - name: テスト
-        run: mise run engine:test
+        run: make engine-test
