@@ -1,6 +1,7 @@
 # タスクランナー(旧 mise.toml を置換)。実ツールはすべて Docker コンテナ内。
 #   build/test  : engine サービス(公式 haskell イメージ / GHC / cabal, arm64 ネイティブ)
-#   lint/format : lint サービス(hlint / ormolu。x86_64 版を linux/amd64 で実行)
+#   lint/format : lint サービス(hlint / ormolu。arm64-linux 配布が無いため
+#                 x86_64 版を linux/amd64 で emulation 実行)
 # 使い方: make <target>(例: make engine-build)。make help で一覧。
 
 COMPOSE := docker compose
