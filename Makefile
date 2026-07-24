@@ -2,12 +2,13 @@
 #   build/test  : engine サービス(公式 haskell イメージ / GHC / cabal, arm64 ネイティブ)
 #   lint/format : lint サービス(hlint / ormolu。arm64-linux 配布が無いため
 #                 x86_64 版を linux/amd64 で emulation 実行)
+#   web-*       : web サービス(Node 22 / pnpm。Vite + React + TypeScript)
 # 使い方: make <target>(例: make engine-build)。make help で一覧。
 
 COMPOSE := docker compose
 PORT ?= 3000
 
-.PHONY: help engine-image engine-build engine-test engine-sh engine-serve engine-fmt engine-fmt-check engine-lint ci
+.PHONY: help engine-image engine-build engine-test engine-sh engine-serve engine-fmt engine-fmt-check engine-lint web-image web-install web-dev web-build web-typecheck ci
 
 help: ## タスク一覧を表示
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) \
@@ -37,4 +38,19 @@ engine-fmt-check: ## 整形崩れがないか確認(コンテナ内)
 engine-lint: ## hlint で静的解析(コンテナ内)
 	$(COMPOSE) run --rm lint hlint src app test
 
-ci: engine-build engine-fmt-check engine-lint engine-test ## CI 相当の検証(イメージビルドは別途)
+web-image: ## web の Docker イメージをビルド
+	$(COMPOSE) build web
+
+web-install: ## web の依存をインストール(node_modules ボリュームを更新)
+	$(COMPOSE) run --rm web pnpm install
+
+web-dev: ## web 開発サーバ(http://localhost:5173)
+	$(COMPOSE) run --rm -p 5173:5173 web pnpm dev --host
+
+web-build: ## web を本番ビルド(tsc -b && vite build)
+	$(COMPOSE) run --rm web pnpm build
+
+web-typecheck: ## web の型チェック(tsc -b)
+	$(COMPOSE) run --rm web pnpm typecheck
+
+ci: engine-build engine-fmt-check engine-lint engine-test web-build web-typecheck ## CI 相当の検証(イメージビルドは別途)
