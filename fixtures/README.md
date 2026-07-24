@@ -22,5 +22,6 @@
 ## ゴールデントレース
 
 - `traces/dfa-even-a.json` — `even-a` に入力 `"aa"` を与えた実行列(手計算で検証済み。トレース形式のリファレンスも兼ねる)。
+- `traces/dtm-anbncn.json` — `anbncn` に入力 `"abc"`(a¹b¹c¹)を与えた実行列。エンジンの CLI が出力した列を目視確認のうえコミットした(`engine-cli run ../fixtures/dtm/anbncn.json --input abc`)。
 
-> **DTM のゴールデントレースはステージ2で追加する。** 手計算は誤りが混入しやすいため、エンジンの CLI が出力した列を目視確認のうえコミットする(`anbncn` に `"abc"` など)。
+エンジンがこれらのトレースを再現できることは `engine/test/Spec.hs` の「ゴールデントレース再現」で検証する。

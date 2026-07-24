@@ -17,6 +17,8 @@ library
     hs-source-dirs:   src
     exposed-modules:  Machine
                       Machine.Spec
+                      Machine.Adapt
+                      Machine.Step
     build-depends:    base >=4.14 && <5
                     , aeson
                     , bytestring
@@ -30,6 +32,10 @@ executable engine-cli
     hs-source-dirs:   app
     main-is:          Main.hs
     build-depends:    base
+                    , aeson
+                    , aeson-pretty
+                    , bytestring
+                    , filepath
                     , turing-visualizer
     default-language: Haskell2010
     ghc-options:      -Wall

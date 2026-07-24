@@ -1,0 +1,190 @@
+{
+	"kind": "dtm",
+	"machine": "anbncn",
+	"input": "abc",
+	"note": "CLI 生成・目視確認済み。a¹b¹c¹(n=1)なので accept。X/Y/Z でマークしながら往復する。",
+	"initial": {
+		"state": "P0",
+		"left": [],
+		"head": "a",
+		"right": [
+			"b",
+			"c"
+		]
+	},
+	"steps": [
+		{
+			"status": "running",
+			"config": {
+				"state": "P1",
+				"left": [
+					"X"
+				],
+				"head": "b",
+				"right": [
+					"c"
+				]
+			},
+			"fired": {
+				"from": "P0",
+				"read": "a",
+				"to": "P1",
+				"write": "X",
+				"move": "R"
+			}
+		},
+		{
+			"status": "running",
+			"config": {
+				"state": "P2",
+				"left": [
+					"X",
+					"Y"
+				],
+				"head": "c",
+				"right": []
+			},
+			"fired": {
+				"from": "P1",
+				"read": "b",
+				"to": "P2",
+				"write": "Y",
+				"move": "R"
+			}
+		},
+		{
+			"status": "running",
+			"config": {
+				"state": "P3",
+				"left": [
+					"X"
+				],
+				"head": "Y",
+				"right": [
+					"Z"
+				]
+			},
+			"fired": {
+				"from": "P2",
+				"read": "c",
+				"to": "P3",
+				"write": "Z",
+				"move": "L"
+			}
+		},
+		{
+			"status": "running",
+			"config": {
+				"state": "P3",
+				"left": [],
+				"head": "X",
+				"right": [
+					"Y",
+					"Z"
+				]
+			},
+			"fired": {
+				"from": "P3",
+				"read": "Y",
+				"to": "P3",
+				"write": "Y",
+				"move": "L"
+			}
+		},
+		{
+			"status": "running",
+			"config": {
+				"state": "P0",
+				"left": [
+					"X"
+				],
+				"head": "Y",
+				"right": [
+					"Z"
+				]
+			},
+			"fired": {
+				"from": "P3",
+				"read": "X",
+				"to": "P0",
+				"write": "X",
+				"move": "R"
+			}
+		},
+		{
+			"status": "running",
+			"config": {
+				"state": "P4",
+				"left": [
+					"X",
+					"Y"
+				],
+				"head": "Z",
+				"right": []
+			},
+			"fired": {
+				"from": "P0",
+				"read": "Y",
+				"to": "P4",
+				"write": "Y",
+				"move": "R"
+			}
+		},
+		{
+			"status": "running",
+			"config": {
+				"state": "P4",
+				"left": [
+					"X",
+					"Y",
+					"Z"
+				],
+				"head": null,
+				"right": []
+			},
+			"fired": {
+				"from": "P4",
+				"read": "Z",
+				"to": "P4",
+				"write": "Z",
+				"move": "R"
+			}
+		},
+		{
+			"status": "running",
+			"config": {
+				"state": "PA",
+				"left": [
+					"X",
+					"Y",
+					"Z",
+					null
+				],
+				"head": null,
+				"right": []
+			},
+			"fired": {
+				"from": "P4",
+				"read": null,
+				"to": "PA",
+				"write": null,
+				"move": "R"
+			}
+		},
+		{
+			"status": "accept",
+			"config": {
+				"state": "PA",
+				"left": [
+					"X",
+					"Y",
+					"Z",
+					null
+				],
+				"head": null,
+				"right": []
+			},
+			"fired": null
+		}
+	]
+}
