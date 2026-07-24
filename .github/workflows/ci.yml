@@ -44,6 +44,9 @@ jobs:
           - name: web-typecheck
             target: web-typecheck
             image: web
+          - name: web-check
+            target: web-check
+            image: web
     steps:
       - uses: actions/checkout@v4
         with:
