@@ -86,8 +86,8 @@ turing-machine-visualizer/
 
 1. **契約** — 機械 spec / ステップ実行の JSON 仕様を「ドキュメント + fixture」で確定 ✅
 2. **エンジン中核** — `Adapt` + `Step` + CLI。ゴールデントレース再現で検証 ✅
-3. **HTTP** — Scotty で `/step` を公開 ← 現在地
-4. **フロント骨組み** — fixture を履歴に入れて再生機 + 操作 UI(バック不要でレビュー可)
+3. **HTTP** — Scotty で `/api/{dfa,dtm}/step` を公開(CORS 許可) ✅
+4. **フロント骨組み** — fixture を履歴に入れて再生機 + 操作 UI(バック不要でレビュー可) ← 現在地
 5. **API 接続** — フロントを HTTP に繋ぐ
 6. **描画と編集** — DFA 状態遷移図 / DTM テープ / 編集エディタを個別に
 

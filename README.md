@@ -31,13 +31,26 @@ engine/     Haskell バックエンド(予定)
 web/        フロントエンド(予定)
 ```
 
+## エンジンを動かす
+
+すべて Docker コンテナ内で完結する(タスクは `make`。一覧は `make help`)。
+
+- `make engine-test` — エンジンのテスト(ゴールデントレース再現含む)
+- `make engine-serve` — HTTP サーバを起動(`http://localhost:3000`。`PORT` で変更可)
+
+HTTP エンドポイントはステートレス(詳細は [`docs/contract.md`](docs/contract.md) §4)。
+
+- `POST /api/dfa/step` — body `{ "machine": DFASpec, "config": DFAConfig }` → StepResult
+- `POST /api/dtm/step` — body `{ "machine": DTMSpec, "config": DTMConfig }` → StepResult
+- `GET /health` — 稼働確認
+
 ## 開発ステージ
 
 小さく積んでレビューしやすくする(詳細は [`docs/architecture.md`](docs/architecture.md))。
 
 - [x] 1. 契約 — JSON 仕様を docs + fixtures で確定
-- [ ] 2. エンジン中核 — spec→遷移関数のアダプタ + 1 ステップ実行 + CLI
-- [ ] 3. HTTP — Scotty で `/step` を公開
+- [x] 2. エンジン中核 — spec→遷移関数のアダプタ + 1 ステップ実行 + CLI
+- [x] 3. HTTP — Scotty で `/api/{dfa,dtm}/step` を公開
 - [ ] 4. フロント骨組み — fixture を再生する UI
 - [ ] 5. API 接続
 - [ ] 6. 描画と編集 — DFA 状態遷移図 / DTM テープ / エディタ
