@@ -28,6 +28,9 @@ module Machine.Spec
 
     -- * fixture ラッパ
     Fixture (..),
+
+    -- * ゴールデントレース
+    Trace (..),
   )
 where
 
@@ -39,6 +42,7 @@ import Data.Aeson
     withObject,
     withText,
     (.:),
+    (.:?),
     (.=),
   )
 import qualified Data.Text as T
@@ -332,3 +336,39 @@ instance (FromJSON a) => FromJSON (Fixture a) where
       <*> o .: "name"
       <*> o .: "description"
       <*> o .: "machine"
+
+-- | ゴールデントレース(docs/contract.md §6)。初期コンフィグと @/step@ 応答の列を
+-- 記録し、エンジン実装がこれを再現できることをテストで確認する。
+-- @cfg@ は 'DFAConfig' / 'DTMConfig'、@step@ は 'StepDFA' / 'StepDTM'。
+-- @note@ は任意メモ(null または欠落で 'Nothing')。
+data Trace cfg step = Trace
+  { traceKind :: String,
+    traceMachine :: String,
+    traceInput :: String,
+    traceNote :: Maybe String,
+    traceInitial :: cfg,
+    traceSteps :: [step]
+  }
+  deriving (Eq, Show)
+
+instance (ToJSON cfg, ToJSON step) => ToJSON (Trace cfg step) where
+  toJSON t =
+    object $
+      [ "kind" .= traceKind t,
+        "machine" .= traceMachine t,
+        "input" .= traceInput t
+      ]
+        ++ maybe [] (\n -> ["note" .= n]) (traceNote t)
+        ++ [ "initial" .= traceInitial t,
+             "steps" .= traceSteps t
+           ]
+
+instance (FromJSON cfg, FromJSON step) => FromJSON (Trace cfg step) where
+  parseJSON = withObject "Trace" $ \o ->
+    Trace
+      <$> o .: "kind"
+      <*> o .: "machine"
+      <*> o .: "input"
+      <*> o .:? "note"
+      <*> o .: "initial"
+      <*> o .: "steps"

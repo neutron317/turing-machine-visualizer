@@ -5,12 +5,18 @@ module Main (main) where
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BL
 import Data.Either (isRight)
-import Machine.Spec
+import Machine
 import Test.Hspec
 
 -- 値 → JSON → 値 が元に戻ることを確認する。
 roundTrips :: (Eq a, Show a, A.ToJSON a, A.FromJSON a) => a -> Expectation
 roundTrips x = A.decode (A.encode x) `shouldBe` Just x
+
+-- JSON ファイルを読んでデコードする(失敗はテスト失敗にする)。
+decodeIO :: (A.FromJSON a) => FilePath -> IO a
+decodeIO path = do
+  bs <- BL.readFile path
+  either (\e -> fail (path <> ": " <> e)) pure (A.eitherDecode bs)
 
 main :: IO ()
 main = hspec $ do
@@ -68,3 +74,76 @@ main = hspec $ do
           )
           files
       oks `shouldBe` map (const True) files
+
+  describe "ステップ意味論(contract.md §4.2)" $ do
+    let evenA =
+          DFASpec
+            { dfaStates = ["Even", "Odd"],
+              dfaAlphabet = [Symbol 'a'],
+              dfaStart = "Even",
+              dfaAccept = ["Even"],
+              dfaTransitions =
+                [ DFATrans "Even" (Symbol 'a') "Odd",
+                  DFATrans "Odd" (Symbol 'a') "Even"
+                ]
+            }
+
+    it "DFA: 入力を読み切って受理状態なら accept" $
+      stepDFA evenA (DFAConfig "Even" [])
+        `shouldBe` StepDFA Accepted (DFAConfig "Even" []) Nothing
+
+    it "DFA: 遷移が無ければ reject(config 据え置き・fired=null)" $
+      stepDFA evenA (DFAConfig "Even" [Symbol 'b'])
+        `shouldBe` StepDFA Rejected (DFAConfig "Even" [Symbol 'b']) Nothing
+
+    it "DFA: 入力を読み切っても非受理状態なら terminal reject" $
+      stepDFA evenA (DFAConfig "Odd" [])
+        `shouldBe` StepDFA Rejected (DFAConfig "Odd" []) Nothing
+
+    it "DFA: 受理状態でも入力が残っていれば受理しない(1歩進む)" $
+      stepDFA evenA (DFAConfig "Even" [Symbol 'a'])
+        `shouldBe` StepDFA Running (DFAConfig "Odd" []) (Just (FiredDFA "Even" (Symbol 'a') "Odd"))
+
+    it "DFA: 初期コンフィグは (start, 入力列)" $
+      initialDFA evenA [Symbol 'a', Symbol 'a'] `shouldBe` DFAConfig "Even" [Symbol 'a', Symbol 'a']
+
+    let leftMover =
+          DTMSpec
+            { dtmStates = ["P0", "PA"],
+              dtmTapeAlphabet = [Symbol 'a'],
+              dtmStart = "P0",
+              dtmAccept = ["PA"],
+              dtmTransitions = [DTMTrans "P0" (Just (Symbol 'a')) "P0" (Just (Symbol 'a')) L]
+            }
+
+    it "DTM: 受理は遷移より先に判定する" $
+      stepDTM leftMover (DTMConfig "PA" [] (Just (Symbol 'a')) [])
+        `shouldBe` StepDTM Accepted (DTMConfig "PA" [] (Just (Symbol 'a')) []) Nothing
+
+    it "DTM: 左端で左移動しようとすると reject(config 据え置き・書き込みも反映しない)" $
+      stepDTM leftMover (DTMConfig "P0" [] (Just (Symbol 'a')) [])
+        `shouldBe` StepDTM Rejected (DTMConfig "P0" [] (Just (Symbol 'a')) []) Nothing
+
+    it "DTM: 遷移が無い(行き詰まり)なら reject(config 据え置き・fired=null)" $
+      stepDTM leftMover (DTMConfig "P0" [] (Just (Symbol 'b')) [])
+        `shouldBe` StepDTM Rejected (DTMConfig "P0" [] (Just (Symbol 'b')) []) Nothing
+
+    it "DTM: 初期コンフィグは head=先頭・right=残り(空入力は head=null)" $ do
+      initialDTM leftMover [Symbol 'a', Symbol 'a']
+        `shouldBe` DTMConfig "P0" [] (Just (Symbol 'a')) [Just (Symbol 'a')]
+      initialDTM leftMover [] `shouldBe` DTMConfig "P0" [] Nothing []
+
+  describe "ゴールデントレース再現(contract.md §6)" $ do
+    it "DFA even-a / \"aa\" を再現する" $ do
+      fx <- decodeIO "../fixtures/dfa/even-a.json" :: IO (Fixture DFASpec)
+      tr <- decodeIO "../fixtures/traces/dfa-even-a.json" :: IO (Trace DFAConfig StepDFA)
+      let spec = fixtureMachine fx
+      traceInitial tr `shouldBe` initialDFA spec (map Symbol (traceInput tr))
+      traceDFA spec (traceInitial tr) 100 `shouldBe` traceSteps tr
+
+    it "DTM anbncn / \"abc\" を再現する" $ do
+      fx <- decodeIO "../fixtures/dtm/anbncn.json" :: IO (Fixture DTMSpec)
+      tr <- decodeIO "../fixtures/traces/dtm-anbncn.json" :: IO (Trace DTMConfig StepDTM)
+      let spec = fixtureMachine fx
+      traceInitial tr `shouldBe` initialDTM spec (map Symbol (traceInput tr))
+      traceDTM spec (traceInitial tr) 1000 `shouldBe` traceSteps tr
