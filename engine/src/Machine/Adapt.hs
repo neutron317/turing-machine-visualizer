@@ -8,6 +8,7 @@
 module Machine.Adapt
   ( dfaFromSpec,
     dtmFromSpec,
+    dtmFromMap,
     dtmTransMap,
     toTape,
     fromTape,
@@ -33,7 +34,7 @@ dfaFromSpec spec =
     tm = Map.fromList [((dfatFrom t, dfatRead t), dfatTo t) | t <- dfaTransitions spec]
 
 -- | DTM の遷移表。@(from, read)@ → その遷移 1 本。決定性なので後勝ちで一意化される。
--- 発火した遷移(fired)の復元と 'dfaFromSpec' の両方で使う。
+-- 発火した遷移(fired)の復元(Step.hs)と 'dtmFromSpec' / 'dtmFromMap' で使う。
 dtmTransMap :: DTMSpec -> Map (String, Maybe Symbol) DTMTrans
 dtmTransMap spec =
   Map.fromList [((dtmtFrom t, dtmtRead t), t) | t <- dtmTransitions spec]
@@ -42,7 +43,13 @@ dtmTransMap spec =
 -- 遷移が無い @(state, symbol)@ では次状態 'Nothing' を返し、@transDTM@ 側で
 -- 行き詰まり(reject)になる。
 dtmFromSpec :: DTMSpec -> V.DTM String Symbol
-dtmFromSpec spec =
+dtmFromSpec spec = dtmFromMap spec (dtmTransMap spec)
+
+-- | 遷移表を渡して 'DTM.DTM' を構築する。ステップ実行側が fired 復元用の遷移表と
+-- @transDTM@ 用の 'DTM.DTM' を同じ Map から一度だけ組み立てられるようにする
+-- ('dtmTransMap' の二重構築を避ける)。
+dtmFromMap :: DTMSpec -> Map (String, Maybe Symbol) DTMTrans -> V.DTM String Symbol
+dtmFromMap spec tm =
   V.DTM
     { V.dtmtransfunc = \st sym -> case Map.lookup (st, sym) tm of
         Just t -> (Just (dtmtTo t), (dtmtWrite t, toVMove (dtmtMove t)))
@@ -51,8 +58,6 @@ dtmFromSpec spec =
       V.dtmstart = dtmStart spec,
       V.dtmfinish = dtmAccept spec
     }
-  where
-    tm = dtmTransMap spec
 
 -- | 契約 'Move' → vendored 'DTM.Move'。orphan instance を避けるため関数で変換する。
 toVMove :: Move -> V.Move

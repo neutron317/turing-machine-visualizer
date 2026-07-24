@@ -19,6 +19,7 @@ where
 
 import qualified DFA as V
 import qualified DTM as V
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Machine.Adapt
 import Machine.Spec
@@ -30,11 +31,16 @@ import Machine.Spec
 --
 -- 注: DFA の受理判定は入力を読み切った時のみ(途中で受理状態に居ても受理しない)。
 stepDFA :: DFASpec -> DFAConfig -> StepDFA
-stepDFA spec c@(DFAConfig st rest) =
+stepDFA spec = stepDFAWith (dfaFromSpec spec)
+
+-- | コンパイル済みの 'DFA.DFA' で 1 ステップ進める下請け。トレースが遷移表を
+-- ステップ毎に組み直さないよう、マシンの構築(= Map 構築)と分離する。
+stepDFAWith :: V.DFA String Symbol () -> DFAConfig -> StepDFA
+stepDFAWith dfa c@(DFAConfig st rest) =
   case rest of
-    [] -> StepDFA (finalStatus (st `elem` dfaAccept spec)) c Nothing
+    [] -> StepDFA (finalStatus (st `elem` V.dfafinish dfa)) c Nothing
     (sym : more) ->
-      case V.transDFA (dfaFromSpec spec) st sym of
+      case V.transDFA dfa st sym of
         (Just to, _) -> StepDFA Running (DFAConfig to more) (Just (FiredDFA st sym to))
         (Nothing, _) -> StepDFA Rejected c Nothing
 
@@ -48,13 +54,22 @@ stepDFA spec c@(DFAConfig st rest) =
 --
 -- テープ機構(左端 reject・右端での @head=null@ 生成)は vendored @transDTM@ に委ねる。
 stepDTM :: DTMSpec -> DTMConfig -> StepDTM
-stepDTM spec c
-  | tcState c `elem` dtmAccept spec = StepDTM Accepted c Nothing
+stepDTM spec = let tmap = dtmTransMap spec in stepDTMWith (dtmFromMap spec tmap) tmap
+
+-- | コンパイル済みの 'DTM.DTM' と遷移表で 1 ステップ進める下請け。遷移表は fired
+-- 復元に、'DTM.DTM' は @transDTM@ に使う。両者は同じ Map から一度だけ組む。
+stepDTMWith ::
+  V.DTM String Symbol ->
+  Map (String, Maybe Symbol) DTMTrans ->
+  DTMConfig ->
+  StepDTM
+stepDTMWith dtm tmap c
+  | tcState c `elem` V.dtmfinish dtm = StepDTM Accepted c Nothing
   | otherwise =
-      case Map.lookup (tcState c, tcHead c) (dtmTransMap spec) of
+      case Map.lookup (tcState c, tcHead c) tmap of
         Nothing -> StepDTM Rejected c Nothing
         Just t ->
-          case V.transDTM (dtmFromSpec spec) (toTape c) (tcState c) of
+          case V.transDTM dtm (toTape c) (tcState c) of
             (Nothing, _) -> StepDTM Rejected c Nothing
             (Just to, tape') -> StepDTM Running (fromTape to tape') (Just (firedDTM t))
 
@@ -76,17 +91,21 @@ initialDTM spec (x : xs) = DTMConfig (dtmStart spec) [] (Just x) (map Just xs)
 
 -- | 初期コンフィグから停止(status ≠ running)まで、または最大 @n@ 手まで
 -- 各ステップ応答を並べる。停止しない DTM でも @n@ で打ち切れる(遅延評価で安全)。
+-- コンパイル済みマシン(遷移表)は走査の前に一度だけ構築して使い回す。
 traceDFA :: DFASpec -> DFAConfig -> Int -> [StepDFA]
 traceDFA spec c0 n = take n (go c0)
   where
+    dfa = dfaFromSpec spec
     go c =
-      let s = stepDFA spec c
+      let s = stepDFAWith dfa c
        in s : if sdaStatus s == Running then go (sdaConfig s) else []
 
 -- | 'traceDFA' の DTM 版。
 traceDTM :: DTMSpec -> DTMConfig -> Int -> [StepDTM]
 traceDTM spec c0 n = take n (go c0)
   where
+    tmap = dtmTransMap spec
+    dtm = dtmFromMap spec tmap
     go c =
-      let s = stepDTM spec c
+      let s = stepDTMWith dtm tmap c
        in s : if sdtStatus s == Running then go (sdtConfig s) else []

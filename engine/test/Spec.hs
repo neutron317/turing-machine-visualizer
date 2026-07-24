@@ -96,6 +96,10 @@ main = hspec $ do
       stepDFA evenA (DFAConfig "Even" [Symbol 'b'])
         `shouldBe` StepDFA Rejected (DFAConfig "Even" [Symbol 'b']) Nothing
 
+    it "DFA: 入力を読み切っても非受理状態なら terminal reject" $
+      stepDFA evenA (DFAConfig "Odd" [])
+        `shouldBe` StepDFA Rejected (DFAConfig "Odd" []) Nothing
+
     it "DFA: 受理状態でも入力が残っていれば受理しない(1歩進む)" $
       stepDFA evenA (DFAConfig "Even" [Symbol 'a'])
         `shouldBe` StepDFA Running (DFAConfig "Odd" []) (Just (FiredDFA "Even" (Symbol 'a') "Odd"))
@@ -119,6 +123,10 @@ main = hspec $ do
     it "DTM: 左端で左移動しようとすると reject(config 据え置き・書き込みも反映しない)" $
       stepDTM leftMover (DTMConfig "P0" [] (Just (Symbol 'a')) [])
         `shouldBe` StepDTM Rejected (DTMConfig "P0" [] (Just (Symbol 'a')) []) Nothing
+
+    it "DTM: 遷移が無い(行き詰まり)なら reject(config 据え置き・fired=null)" $
+      stepDTM leftMover (DTMConfig "P0" [] (Just (Symbol 'b')) [])
+        `shouldBe` StepDTM Rejected (DTMConfig "P0" [] (Just (Symbol 'b')) []) Nothing
 
     it "DTM: 初期コンフィグは head=先頭・right=残り(空入力は head=null)" $ do
       initialDTM leftMover [Symbol 'a', Symbol 'a']
