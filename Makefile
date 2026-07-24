@@ -8,7 +8,7 @@
 COMPOSE := docker compose
 PORT ?= 3000
 
-.PHONY: help engine-image engine-build engine-test engine-sh engine-serve engine-fmt engine-fmt-check engine-lint web-image web-install web-dev web-build web-typecheck web-check web-fix ci
+.PHONY: help engine-image engine-build engine-test engine-sh engine-serve engine-fmt engine-fmt-check engine-lint web-image web-install web-dev web-build web-typecheck web-test web-check web-fix ci
 
 help: ## タスク一覧を表示
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) \
@@ -53,10 +53,13 @@ web-build: ## web を本番ビルド(tsc -b && vite build)
 web-typecheck: ## web の型チェック(tsc -b)
 	$(COMPOSE) run --rm web pnpm typecheck
 
+web-test: ## web の単体テスト(Vitest)
+	$(COMPOSE) run --rm web pnpm test
+
 web-check: ## web を Biome で検査(format + lint、CI 相当・書き込みなし)
 	$(COMPOSE) run --rm web pnpm check
 
 web-fix: ## web を Biome で整形・自動修正(書き込み)
 	$(COMPOSE) run --rm web pnpm fix
 
-ci: engine-build engine-fmt-check engine-lint engine-test web-build web-typecheck web-check ## CI 相当の検証(イメージビルドは別途)
+ci: engine-build engine-fmt-check engine-lint engine-test web-build web-typecheck web-test web-check ## CI 相当の検証(イメージビルドは別途)
