@@ -9,8 +9,8 @@
 # NOTE: 依存は engine/Dockerfile でイメージ層に焼き、docker/bake の GHA レイヤ
 #       キャッシュ(image ごとに scope 分離)で再利用する。キャッシュヒット時は
 #       依存を再コンパイルせず高速(初回、または engine/turing-visualizer.cabal
-#       変更時のみ遅い)。build/test は engine、lint/format は lint イメージのみ
-#       をビルドする。フロント(JS/TS)の CI はステージ4で追加する。
+#       変更時のみ遅い)。build/test は engine、lint/format は lint、web-* は web
+#       イメージのみをビルドする(web も同様に web/Dockerfile へ依存を焼く)。
 name: CI
 
 on:
@@ -38,6 +38,12 @@ jobs:
           - name: format
             target: engine-fmt-check
             image: lint
+          - name: web-build
+            target: web-build
+            image: web
+          - name: web-typecheck
+            target: web-typecheck
+            image: web
     steps:
       - uses: actions/checkout@v4
         with:

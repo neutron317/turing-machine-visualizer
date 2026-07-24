@@ -24,6 +24,18 @@ services:
     volumes:
       - .:/work
 
+  # フロント用: Node 22 + pnpm。node_modules は名前付きボリュームで保持し、
+  # バインドマウント(.:/work)による空ディレクトリ上書きを避ける。
+  web:
+    image: turing-visualizer-web:dev
+    build:
+      context: ./web
+    working_dir: /work/web
+    volumes:
+      - .:/work
+      - web-node-modules:/work/web/node_modules
+
 volumes:
   cabal-store:
   engine-dist:
+  web-node-modules:

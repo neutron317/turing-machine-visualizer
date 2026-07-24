@@ -2,3 +2,6 @@
 dist-newstyle/
 *.hi
 *.o
+
+# pnpm のコンテンツアドレス可能ストア(バインドマウント時にルートへ生成されうる)
+.pnpm-store/
