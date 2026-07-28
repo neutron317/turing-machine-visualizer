@@ -34,6 +34,8 @@ function machineInitial(m: Machine) {
 export default function App() {
 	const [selectedId, setSelectedId] = useState(machines[0].id);
 	const machine = machines.find((m) => m.id === selectedId) ?? machines[0];
+	// 実行する入力文字列(編集可)。機械を切り替えると既定入力に戻す。
+	const [inputText, setInputText] = useState(machines[0].input);
 
 	const frame = useReplayStore(selectCurrentFrame);
 	const cursor = useReplayStore((s) => s.cursor);
@@ -58,6 +60,15 @@ export default function App() {
 	// 機械(spec + 入力)から実行を開始する。
 	const startMachine = (m: Machine) => {
 		startRun(m.kind, m.spec, machineInitial(m));
+	};
+
+	// 編集した入力文字列で現在の機械を実行する。
+	const runInput = () => {
+		const initial =
+			machine.kind === "dfa"
+				? initialDfaConfig(machine.spec, inputText)
+				: initialDtmConfig(machine.spec, inputText);
+		startRun(machine.kind, machine.spec, initial);
 	};
 
 	// 操作板の位置(ドラッグで移動可)。
@@ -142,6 +153,7 @@ export default function App() {
 
 	const selectMachine = (m: Machine) => {
 		setSelectedId(m.id);
+		setInputText(m.input);
 		startMachine(m);
 	};
 
@@ -196,6 +208,30 @@ export default function App() {
 							{m.label}
 						</button>
 					))}
+					<label htmlFor="input-str" className="mt-2 text-gray-500 text-xs">
+						入力(記号を並べる)
+					</label>
+					<div className="flex gap-1">
+						<input
+							id="input-str"
+							type="text"
+							value={inputText}
+							onChange={(e) => setInputText(e.target.value)}
+							onKeyDown={(e) => {
+								// IME 変換確定の Enter で誤って実行しない。
+								if (e.nativeEvent.isComposing) {
+									return;
+								}
+								if (e.key === "Enter") {
+									runInput();
+								}
+							}}
+							className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 font-mono text-sm dark:border-gray-600 dark:bg-gray-700"
+						/>
+						<button type="button" className={CTRL} onClick={runInput}>
+							実行
+						</button>
+					</div>
 				</div>
 			</div>
 
