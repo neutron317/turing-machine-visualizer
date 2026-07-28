@@ -179,6 +179,12 @@ export function AutomatonDiagram({
 	const reset = () => setVb({ x: 0, y: 0, w: size, h: size });
 	const scale = size / vb.w;
 
+	// spec 編集などで size(状態数・ラベル幅)が変わったら viewBox を再フィットし、
+	// 追加された状態が見切れないようにする(同一機械では再マウントされないため)。
+	useEffect(() => {
+		setVb({ x: 0, y: 0, w: size, h: size });
+	}, [size]);
+
 	// ホイールでカーソル位置基準にズーム(ページスクロールを止めるため非 passive)。
 	useEffect(() => {
 		const svg = svgRef.current;

@@ -81,6 +81,16 @@ export function SpecEditor({
 			setError("from と to は空にできません。");
 			return;
 		}
+		// 決定性: 同じ (from, 読み) の組は 1 つだけ(契約 §1)。
+		const keys = new Set<string>();
+		for (const r of rows) {
+			const key = JSON.stringify([r.from, r.read]);
+			if (keys.has(key)) {
+				setError("同じ from と 読み記号 の組が重複しています(決定性)。");
+				return;
+			}
+			keys.add(key);
+		}
 		if (isDfa) {
 			const spec = {
 				states: derivedStates(machine.spec.states, rows),
@@ -130,84 +140,86 @@ export function SpecEditor({
 	return (
 		<div className="flex flex-col gap-1">
 			<div className="text-gray-500 text-xs">遷移表(編集して実行)</div>
-			<table className="text-sm">
-				<thead>
-					<tr className="text-gray-500 text-xs">
-						<th className="px-1 text-left font-normal">from</th>
-						<th className="px-1 text-left font-normal">読</th>
-						{!isDfa && <th className="px-1 text-left font-normal">書</th>}
-						{!isDfa && <th className="px-1 text-left font-normal">移動</th>}
-						<th className="px-1 text-left font-normal">to</th>
-						<th />
-					</tr>
-				</thead>
-				<tbody>
-					{rows.map((r, i) => (
-						// biome-ignore lint/suspicious/noArrayIndexKey: 行位置がキー
-						<tr key={i}>
-							<td className="px-0.5 py-0.5">
-								<input
-									aria-label={`from ${i}`}
-									className={`${cell} w-14`}
-									value={r.from}
-									onChange={(e) => update(i, { from: e.target.value })}
-								/>
-							</td>
-							<td className="px-0.5 py-0.5">
-								<input
-									aria-label={`read ${i}`}
-									className={`${cell} w-8`}
-									value={r.read}
-									onChange={(e) => update(i, { read: e.target.value })}
-								/>
-							</td>
-							{!isDfa && (
+			<div className="overflow-x-auto">
+				<table className="text-sm">
+					<thead>
+						<tr className="text-gray-500 text-xs">
+							<th className="px-1 text-left font-normal">from</th>
+							<th className="px-1 text-left font-normal">読</th>
+							{!isDfa && <th className="px-1 text-left font-normal">書</th>}
+							{!isDfa && <th className="px-1 text-left font-normal">移動</th>}
+							<th className="px-1 text-left font-normal">to</th>
+							<th />
+						</tr>
+					</thead>
+					<tbody>
+						{rows.map((r, i) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: 行位置がキー
+							<tr key={i}>
 								<td className="px-0.5 py-0.5">
 									<input
-										aria-label={`write ${i}`}
-										className={`${cell} w-8`}
-										value={r.write}
-										onChange={(e) => update(i, { write: e.target.value })}
+										aria-label={`from ${i}`}
+										className={`${cell} w-14`}
+										value={r.from}
+										onChange={(e) => update(i, { from: e.target.value })}
 									/>
 								</td>
-							)}
-							{!isDfa && (
 								<td className="px-0.5 py-0.5">
-									<select
-										aria-label={`move ${i}`}
-										className={`${cell}`}
-										value={r.move}
-										onChange={(e) =>
-											update(i, { move: e.target.value as "L" | "R" })
-										}
-									>
-										<option value="L">L</option>
-										<option value="R">R</option>
-									</select>
+									<input
+										aria-label={`read ${i}`}
+										className={`${cell} w-8`}
+										value={r.read}
+										onChange={(e) => update(i, { read: e.target.value })}
+									/>
 								</td>
-							)}
-							<td className="px-0.5 py-0.5">
-								<input
-									aria-label={`to ${i}`}
-									className={`${cell} w-14`}
-									value={r.to}
-									onChange={(e) => update(i, { to: e.target.value })}
-								/>
-							</td>
-							<td className="px-0.5 py-0.5">
-								<button
-									type="button"
-									aria-label={`delete ${i}`}
-									className="rounded px-1 text-gray-400 text-xs hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700"
-									onClick={() => removeRow(i)}
-								>
-									×
-								</button>
-							</td>
-						</tr>
-					))}
-				</tbody>
-			</table>
+								{!isDfa && (
+									<td className="px-0.5 py-0.5">
+										<input
+											aria-label={`write ${i}`}
+											className={`${cell} w-8`}
+											value={r.write}
+											onChange={(e) => update(i, { write: e.target.value })}
+										/>
+									</td>
+								)}
+								{!isDfa && (
+									<td className="px-0.5 py-0.5">
+										<select
+											aria-label={`move ${i}`}
+											className={`${cell}`}
+											value={r.move}
+											onChange={(e) =>
+												update(i, { move: e.target.value as "L" | "R" })
+											}
+										>
+											<option value="L">L</option>
+											<option value="R">R</option>
+										</select>
+									</td>
+								)}
+								<td className="px-0.5 py-0.5">
+									<input
+										aria-label={`to ${i}`}
+										className={`${cell} w-14`}
+										value={r.to}
+										onChange={(e) => update(i, { to: e.target.value })}
+									/>
+								</td>
+								<td className="px-0.5 py-0.5">
+									<button
+										type="button"
+										aria-label={`delete ${i}`}
+										className="rounded px-1 text-gray-400 text-xs hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700"
+										onClick={() => removeRow(i)}
+									>
+										×
+									</button>
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
 			{error && <div className="text-red-600 text-xs">{error}</div>}
 			<div className="flex gap-1">
 				<button

@@ -67,6 +67,53 @@ describe("SpecEditor", () => {
 		expect(screen.getByText(/1 文字/)).toBeInTheDocument();
 	});
 
+	it("to に新規状態を入れると states に補完される", () => {
+		const onRun = vi.fn();
+		render(<SpecEditor machine={dfa} onRun={onRun} />);
+		fireEvent.change(screen.getByLabelText("to 0"), {
+			target: { value: "Z" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "この定義で実行" }));
+		expect(onRun.mock.calls[0][0].states).toContain("Z");
+	});
+
+	it("同じ (from, 読み) が重複するとエラーで実行しない", () => {
+		const onRun = vi.fn();
+		render(<SpecEditor machine={dfa} onRun={onRun} />);
+		fireEvent.click(screen.getByRole("button", { name: "行を追加" }));
+		fireEvent.change(screen.getByLabelText("from 1"), {
+			target: { value: "A" },
+		});
+		fireEvent.change(screen.getByLabelText("read 1"), {
+			target: { value: "a" },
+		});
+		fireEvent.change(screen.getByLabelText("to 1"), {
+			target: { value: "A" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "この定義で実行" }));
+		expect(onRun).not.toHaveBeenCalled();
+		expect(screen.getByText(/重複/)).toBeInTheDocument();
+	});
+
+	it("DTM の書き/読み空欄は null(空白セル)として渡る", () => {
+		const onRun = vi.fn();
+		render(<SpecEditor machine={dtm} onRun={onRun} />);
+		fireEvent.change(screen.getByLabelText("read 0"), {
+			target: { value: "" },
+		});
+		fireEvent.change(screen.getByLabelText("write 0"), {
+			target: { value: "" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "この定義で実行" }));
+		expect(onRun.mock.calls[0][0].transitions[0]).toEqual({
+			from: "P",
+			read: null,
+			to: "P",
+			write: null,
+			move: "R",
+		});
+	});
+
 	it("DTM は書き込み/移動列を表示し、その内容を spec に含める", () => {
 		const onRun = vi.fn();
 		render(<SpecEditor machine={dtm} onRun={onRun} />);
