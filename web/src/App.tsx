@@ -1,6 +1,7 @@
 import {
 	type PointerEvent as ReactPointerEvent,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -8,11 +9,17 @@ import { AutomatonDiagram } from "./components/AutomatonDiagram.tsx";
 import { ConfigView } from "./components/ConfigView.tsx";
 import { SpecEditor } from "./components/SpecEditor.tsx";
 import { SymbolPalette } from "./components/SymbolPalette.tsx";
+import {
+	buildSpec,
+	type Draft,
+	draftFromMachine,
+	draftGraph,
+	specSignature,
+} from "./components/specDraft.ts";
 import { TraceHistory } from "./components/TraceHistory.tsx";
 import { initialDfaConfig, initialDtmConfig } from "./contract/initial.ts";
 import { type Machine, machines } from "./fixtures/machines.ts";
 import {
-	type Spec,
 	selectCanStepBack,
 	selectCanStepForward,
 	selectCurrentFrame,
@@ -54,8 +61,11 @@ export default function App() {
 	const [selectedId, setSelectedId] = useState(machines[0].id);
 	const machine =
 		machineList.find((m) => m.id === selectedId) ?? machineList[0];
+	const isDfa = machine.kind === "dfa";
 	// 実行する入力文字列(編集可)。機械を切り替えると既定入力に戻す。
 	const [inputText, setInputText] = useState(machines[0].input);
+	// 編集中の機械定義(表と図の両方から編集する。機械切替時に該当機械から初期化)。
+	const [draft, setDraft] = useState<Draft>(() => draftFromMachine(machine));
 	// 新規機械の連番。
 	const newIdRef = useRef(0);
 
@@ -68,8 +78,6 @@ export default function App() {
 	const canBack = useReplayStore(selectCanStepBack);
 	const frames = useReplayStore((s) => s.frames);
 	const error = useReplayStore((s) => s.error);
-	// 実行中の spec(編集して実行したものを状態図に反映するため)。
-	const runningSpec = useReplayStore((s) => s.spec);
 	const {
 		startRun,
 		stepForward,
@@ -81,11 +89,35 @@ export default function App() {
 		setSpeed,
 	} = useReplayStore.getState();
 
-	// 遷移関数エディタの編集を現在の機械へライブ反映する(下の effect が実行を更新)。
-	const onSpecChange = (spec: Spec) => {
-		setMachineList((list) =>
-			list.map((m) => (m.id === selectedId ? ({ ...m, spec } as Machine) : m)),
-		);
+	// draft から spec を組み立てる(無効な遷移は除外。start 空のみ error)。妥当なら
+	// 現在の機械へコミットし、下の再初期化 effect が実行へ反映する。図に見せる用の
+	// グラフ(無効遷移も含む)は別途 draftGraph で作る。
+	const built = useMemo(() => buildSpec(draft, isDfa), [draft, isDfa]);
+	const graph = useMemo(() => draftGraph(draft, isDfa), [draft, isDfa]);
+	useEffect(() => {
+		const spec = built.spec;
+		if (!spec) {
+			return;
+		}
+		// 現在の spec と実質差分があるときだけコミットする(読み込み/切替時の冗長な
+		// 再実行や、記号の暗黙並べ替えの取りこぼしを避ける)。
+		setMachineList((list) => {
+			const cur = list.find((m) => m.id === selectedId);
+			// 記号順の違いだけなら再コミットしない(冗長な再実行と並べ替えを避ける)。
+			if (cur && specSignature(cur.spec) === specSignature(spec)) {
+				return list;
+			}
+			return list.map((m) =>
+				m.id === selectedId ? ({ ...m, spec } as Machine) : m,
+			);
+		});
+	}, [built, selectedId]);
+	// 状態間ドラッグで遷移を追加(read/write/move は遷移表で入力。無効なら図に赤表示)。
+	const onAddTransition = (from: string, to: string) => {
+		setDraft((d) => ({
+			...d,
+			rows: [...d.rows, { from, read: "", to, write: "", move: "R" }],
+		}));
 	};
 	// 現在の機械の名前を変更する。
 	const renameMachine = (label: string) => {
@@ -135,6 +167,7 @@ export default function App() {
 		setMachineList((list) => [...list, m]);
 		setSelectedId(m.id);
 		setInputText(m.input);
+		setDraft(draftFromMachine(m));
 	};
 
 	// 操作板の位置(ドラッグで移動可)。既定は左固定エディタと右上の操作クラスタを
@@ -228,6 +261,7 @@ export default function App() {
 	const selectMachine = (m: Machine) => {
 		setSelectedId(m.id);
 		setInputText(m.input);
+		setDraft(draftFromMachine(m));
 	};
 
 	const currentState = frame?.config.state ?? machine.spec.start;
@@ -243,12 +277,14 @@ export default function App() {
 				{frame && (
 					<AutomatonDiagram
 						key={machine.id}
-						spec={runningSpec ?? machine.spec}
+						graph={graph}
 						current={currentState}
 						fired={frame.fired}
 						rightInset={historyOpen ? HISTORY_W : 0}
 						historyOpen={historyOpen}
 						onToggleHistory={() => setHistoryOpen((o) => !o)}
+						editable
+						onAddTransition={onAddTransition}
 					/>
 				)}
 			</div>
@@ -323,9 +359,10 @@ export default function App() {
 					</h2>
 					<div className="flex-1 overflow-y-auto px-3 py-2">
 						<SpecEditor
-							key={machine.id}
-							machine={machine}
-							onSpecChange={onSpecChange}
+							draft={draft}
+							isDfa={isDfa}
+							error={built.error ?? null}
+							onChange={setDraft}
 						/>
 					</div>
 				</section>

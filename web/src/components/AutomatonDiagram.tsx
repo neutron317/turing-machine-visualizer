@@ -4,57 +4,11 @@ import {
 	useRef,
 	useState,
 } from "react";
-import type {
-	DFASpec,
-	DFATrans,
-	DTMSpec,
-	DTMTrans,
-} from "../contract/schemas.ts";
+import type { DisplayGraph } from "./specDraft.ts";
 
 interface Point {
 	x: number;
 	y: number;
-}
-interface Edge {
-	from: string;
-	to: string;
-	label: string;
-}
-
-function sym(x: string | null): string {
-	return x === null ? "␣" : x;
-}
-
-// 遷移ラベル。DFA は read、DTM は read/write,move。
-function transLabel(t: DFATrans | DTMTrans): string {
-	return "move" in t ? `${sym(t.read)}/${sym(t.write)},${t.move}` : sym(t.read);
-}
-
-// spec を状態図の要素へ正規化する。同じ (from,to) の遷移はラベルをまとめる。
-function toGraph(spec: DFASpec | DTMSpec): {
-	states: string[];
-	accept: Set<string>;
-	start: string;
-	edges: Edge[];
-} {
-	const grouped = new Map<string, Edge>();
-	for (const t of spec.transitions) {
-		// 状態名は無制約なので、区切り文字での衝突を避けてタプルを JSON 化する。
-		const key = JSON.stringify([t.from, t.to]);
-		const label = transLabel(t);
-		const g = grouped.get(key);
-		if (g) {
-			g.label += `, ${label}`;
-		} else {
-			grouped.set(key, { from: t.from, to: t.to, label });
-		}
-	}
-	return {
-		states: spec.states,
-		accept: new Set(spec.accept),
-		start: spec.start,
-		edges: [...grouped.values()],
-	};
 }
 
 const R_NODE = 22;
@@ -114,22 +68,42 @@ function selfLoop(p: Point, c: number): { d: string; lx: number; ly: number } {
 	};
 }
 
+// クライアント座標 → viewBox(SVG)座標。preserveAspectRatio="meet" の
+// レターボックスを考慮する(パン/ズーム/当たり判定で共通に使う)。
+function clientToSvg(
+	clientX: number,
+	clientY: number,
+	rect: DOMRect,
+	vb: { x: number; y: number; w: number; h: number },
+): Point {
+	const s = Math.min(rect.width / vb.w, rect.height / vb.h);
+	return {
+		x: vb.x + (clientX - rect.left - (rect.width - vb.w * s) / 2) / s,
+		y: vb.y + (clientY - rect.top - (rect.height - vb.h * s) / 2) / s,
+	};
+}
+
 export function AutomatonDiagram({
-	spec,
+	graph,
 	current,
 	fired,
 	rightInset = 0,
 	historyOpen = false,
 	onToggleHistory,
+	editable = false,
+	onAddTransition,
 }: {
-	spec: DFASpec | DTMSpec;
+	graph: DisplayGraph;
 	current: string;
 	fired?: { from: string; to: string } | null;
 	rightInset?: number;
 	historyOpen?: boolean;
 	onToggleHistory?: () => void;
+	// 編集モード: 状態間ドラッグで遷移を追加(無効な遷移は赤で表示される)。
+	editable?: boolean;
+	onAddTransition?: (from: string, to: string) => void;
 }) {
-	const { states, accept, start, edges } = toGraph(spec);
+	const { states, accept, start, edges } = graph;
 	const firedKey = fired ? JSON.stringify([fired.from, fired.to]) : null;
 	const n = states.length;
 	// ラベル幅(11px monospace ≈ 6.6px/字)を余白に織り込み、側方ノードのまとめ
@@ -168,7 +142,32 @@ export function AutomatonDiagram({
 	// --- pan / zoom(viewBox を操作。ライブラリ不要)---
 	const svgRef = useRef<SVGSVGElement>(null);
 	const [vb, setVb] = useState(() => ({ x: 0, y: 0, w: size, h: size }));
-	const dragRef = useRef<{ x: number; y: number } | null>(null);
+	// ドラッグの種別: pan(視点移動)か link(遷移の作図)。moved でクリックと
+	// ドラッグを区別する(小さなクリックはパン、ノード間ドラッグは遷移作図)。
+	const gesture = useRef<{
+		kind: "pan" | "link";
+		from?: string;
+		sx: number;
+		sy: number;
+		lastX: number;
+		lastY: number;
+		moved: boolean;
+	} | null>(null);
+	// 作図中の一時線(from ノード → カーソル)。
+	const [link, setLink] = useState<{
+		from: string;
+		x: number;
+		y: number;
+	} | null>(null);
+	// SVG 座標で半径 R_NODE 内の最も近いノード名を返す。
+	const hitNode = (x: number, y: number): string | null => {
+		for (const [name, p] of pos) {
+			if (Math.hypot(x - p.x, y - p.y) <= R_NODE) {
+				return name;
+			}
+		}
+		return null;
+	};
 
 	// スケール(1=フィット, >1=拡大)へ、現在の中心を保ってズームする。
 	const zoomTo = (scale: number) => {
@@ -214,25 +213,68 @@ export function AutomatonDiagram({
 	}, []);
 
 	const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
-		dragRef.current = { x: e.clientX, y: e.clientY };
+		const rect = e.currentTarget.getBoundingClientRect();
+		const p = clientToSvg(e.clientX, e.clientY, rect, vb);
+		const hit = editable ? hitNode(p.x, p.y) : null;
+		gesture.current = {
+			kind: hit ? "link" : "pan",
+			from: hit ?? undefined,
+			sx: e.clientX,
+			sy: e.clientY,
+			lastX: e.clientX,
+			lastY: e.clientY,
+			moved: false,
+		};
+		if (hit) {
+			setLink({ from: hit, x: p.x, y: p.y });
+		}
 		e.currentTarget.setPointerCapture(e.pointerId);
 	};
 	const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
-		if (!dragRef.current) {
+		const g = gesture.current;
+		if (!g) {
 			return;
 		}
+		if (!g.moved && Math.hypot(e.clientX - g.sx, e.clientY - g.sy) > 4) {
+			g.moved = true;
+		}
 		const rect = e.currentTarget.getBoundingClientRect();
-		// preserveAspectRatio="meet" の実効スケールは幅・高さの小さい方で決まる。
-		// これを使わないと横方向のパンがカーソルに追従せず鈍く感じる。
+		if (g.kind === "link") {
+			const p = clientToSvg(e.clientX, e.clientY, rect, vb);
+			setLink((l) => (l ? { ...l, x: p.x, y: p.y } : l));
+			return;
+		}
+		// パン: preserveAspectRatio="meet" の実効スケールで delta を換算する。
 		const s = Math.min(rect.width / vb.w, rect.height / vb.h);
-		const dx = (e.clientX - dragRef.current.x) / s;
-		const dy = (e.clientY - dragRef.current.y) / s;
-		dragRef.current = { x: e.clientX, y: e.clientY };
+		const dx = (e.clientX - g.lastX) / s;
+		const dy = (e.clientY - g.lastY) / s;
+		g.lastX = e.clientX;
+		g.lastY = e.clientY;
 		setVb((v) => ({ ...v, x: v.x - dx, y: v.y - dy }));
 	};
-	const onPointerUp = () => {
-		dragRef.current = null;
+	const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
+		const g = gesture.current;
+		gesture.current = null;
+		if (!g) {
+			return;
+		}
+		if (g.kind === "link") {
+			setLink(null);
+			if (g.moved && g.from && onAddTransition) {
+				const rect = e.currentTarget.getBoundingClientRect();
+				const p = clientToSvg(e.clientX, e.clientY, rect, vb);
+				const target = hitNode(p.x, p.y);
+				if (target) {
+					onAddTransition(g.from, target);
+				}
+			}
+		}
 	};
+	const onPointerCancel = () => {
+		gesture.current = null;
+		setLink(null);
+	};
+	const linkFromPos = link ? (pos.get(link.from) ?? null) : null;
 
 	return (
 		<div className="relative h-full w-full">
@@ -270,6 +312,11 @@ export function AutomatonDiagram({
 				>
 					リセット
 				</button>
+				{editable && (
+					<span className="max-w-16 text-center text-[11px] text-gray-600 leading-tight dark:text-gray-300">
+						ドラッグで遷移を追加
+					</span>
+				)}
 			</div>
 			<svg
 				ref={svgRef}
@@ -281,7 +328,8 @@ export function AutomatonDiagram({
 				onPointerDown={onPointerDown}
 				onPointerMove={onPointerMove}
 				onPointerUp={onPointerUp}
-				onPointerLeave={onPointerUp}
+				onPointerCancel={onPointerCancel}
+				onPointerLeave={onPointerCancel}
 			>
 				<title>状態遷移図</title>
 				<defs>
@@ -330,13 +378,24 @@ export function AutomatonDiagram({
 					const geo = e.from === e.to ? selfLoop(a, c) : curve(a, b);
 					const isFired = JSON.stringify([e.from, e.to]) === firedKey;
 					return (
-						<g key={JSON.stringify([e.from, e.to])} data-fired={isFired}>
+						<g
+							key={JSON.stringify([e.from, e.to])}
+							data-fired={isFired}
+							data-invalid={!e.valid}
+						>
 							<path
 								d={geo.d}
 								fill="none"
 								stroke="currentColor"
-								className={isFired ? "stroke-blue-500" : undefined}
+								className={
+									isFired
+										? "stroke-blue-500"
+										: e.valid
+											? undefined
+											: "stroke-red-500"
+								}
 								strokeWidth={isFired ? 2.5 : 1.5}
+								strokeDasharray={e.valid ? undefined : "6 4"}
 								markerEnd={isFired ? "url(#arrow-active)" : "url(#arrow)"}
 							/>
 							<text
@@ -347,7 +406,9 @@ export function AutomatonDiagram({
 								className={
 									isFired
 										? "fill-blue-600 font-bold font-mono text-[11px] dark:fill-blue-300"
-										: "fill-gray-600 font-mono text-[11px] dark:fill-gray-300"
+										: e.valid
+											? "fill-gray-600 font-mono text-[11px] dark:fill-gray-300"
+											: "fill-red-600 font-mono text-[11px] dark:fill-red-400"
 								}
 							>
 								{e.label}
@@ -355,6 +416,20 @@ export function AutomatonDiagram({
 						</g>
 					);
 				})}
+
+				{/* 作図中の一時線(状態間ドラッグで遷移を作る) */}
+				{link && linkFromPos && (
+					<line
+						x1={linkFromPos.x}
+						y1={linkFromPos.y}
+						x2={link.x}
+						y2={link.y}
+						className="stroke-blue-400"
+						strokeWidth={2}
+						strokeDasharray="5 4"
+						markerEnd="url(#arrow-active)"
+					/>
+				)}
 
 				{/* 状態ノード */}
 				{states.map((st) => {

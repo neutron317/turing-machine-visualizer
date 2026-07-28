@@ -167,16 +167,17 @@ describe("App(再生 UI)", () => {
 		expect(screen.getByText(/テープ記号/)).toBeInTheDocument();
 	});
 
-	it("エディタの編集は機械へライブ反映され、切替後も残る", () => {
+	it("状態名の変更は機械へライブ反映され、切替後も残る", () => {
 		render(<App />);
-		fireEvent.change(screen.getByLabelText("初期状態"), {
-			target: { value: "X" },
+		// 先頭状態(Even)を Z に改名。
+		fireEvent.change(screen.getByLabelText("state 0"), {
+			target: { value: "Z" },
 		});
 		// 別機械へ切替 → 戻る。
 		fireEvent.click(screen.getByRole("button", { name: /DTM:/ }));
 		fireEvent.click(screen.getByRole("button", { name: /DFA:/ }));
-		expect((screen.getByLabelText("初期状態") as HTMLInputElement).value).toBe(
-			"X",
+		expect((screen.getByLabelText("state 0") as HTMLInputElement).value).toBe(
+			"Z",
 		);
 	});
 
@@ -207,6 +208,11 @@ describe("App(再生 UI)", () => {
 			write: "a",
 			move: "R",
 		});
+	});
+
+	it("状態図が編集モード(ドラッグで遷移追加)である", () => {
+		render(<App />);
+		expect(screen.getByText(/ドラッグで遷移/)).toBeInTheDocument();
 	});
 
 	it("機械の名前を変更できる", () => {
