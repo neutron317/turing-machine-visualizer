@@ -80,7 +80,7 @@ function FiredView({ fired }: { fired: Fired }) {
 export function ConfigView({ frame }: { frame: Frame }) {
 	const { config, status, fired } = frame;
 	return (
-		<section className="mt-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+		<section>
 			<div className="flex items-center gap-3">
 				<StatusBadge status={status} />
 				<span className="font-mono text-lg">状態: {config.state}</span>

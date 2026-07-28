@@ -10,6 +10,10 @@ import {
 } from "./store/replay.ts";
 
 const SPEEDS = [1, 2, 4, 8];
+const PANEL =
+	"rounded-lg border border-gray-200 bg-white/90 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-800/90";
+const CTRL =
+	"rounded border border-gray-300 px-2 py-1 text-sm disabled:opacity-40 dark:border-gray-600 dark:hover:bg-gray-700";
 
 export default function App() {
 	const [selectedId, setSelectedId] = useState(machines[0].id);
@@ -32,7 +36,7 @@ export default function App() {
 		}
 	}, [load]);
 
-	// 自動再生: playing の間だけ speed に応じて前進する。
+	// 自動再生。
 	useEffect(() => {
 		if (!playing) {
 			return;
@@ -51,14 +55,23 @@ export default function App() {
 	const currentState = frame?.config.state ?? machine.spec.start;
 
 	return (
-		<main className="min-h-screen bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-			<div className="mx-auto max-w-2xl p-8">
-				<h1 className="text-2xl font-bold">Turing Machine Visualizer</h1>
-				<p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-					ゴールデントレースの再生(バックエンド未接続の骨組み)
-				</p>
+		<main className="relative h-screen w-screen overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
+			{/* 状態図(全面) */}
+			<div className="absolute inset-0">
+				{frame && (
+					<AutomatonDiagram
+						key={machine.id}
+						spec={machine.spec}
+						current={currentState}
+						fired={frame.fired}
+					/>
+				)}
+			</div>
 
-				<div className="mt-4 flex flex-wrap gap-2">
+			{/* 操作板(左上) */}
+			<div className={`absolute top-3 left-3 z-20 w-64 p-3 ${PANEL}`}>
+				<h1 className="font-bold text-sm">Turing Machine Visualizer</h1>
+				<div className="mt-2 flex flex-col gap-1">
 					{machines.map((m) => (
 						<button
 							key={m.id}
@@ -66,8 +79,8 @@ export default function App() {
 							aria-pressed={m.id === selectedId}
 							className={
 								m.id === selectedId
-									? "rounded border border-blue-500 bg-blue-500 px-3 py-1 text-white"
-									: "rounded border border-gray-300 px-3 py-1 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-800"
+									? "rounded bg-blue-500 px-2 py-1 text-left text-sm text-white"
+									: "rounded px-2 py-1 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
 							}
 							onClick={() => selectMachine(m)}
 						>
@@ -75,75 +88,67 @@ export default function App() {
 						</button>
 					))}
 				</div>
-
-				{frame ? (
-					<>
-						<div className="mt-4 flex flex-wrap items-center gap-2">
-							<button
-								type="button"
-								className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40 dark:border-gray-600"
-								onClick={reset}
-							>
-								↺ 最初へ
-							</button>
-							<button
-								type="button"
-								className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40 dark:border-gray-600"
-								onClick={stepBack}
-								disabled={!canBack}
-							>
-								◀ 戻る
-							</button>
-							<button
-								type="button"
-								className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40 dark:border-gray-600"
-								onClick={playing ? pause : play}
-							>
-								{playing ? "⏸ 一時停止" : "▶ 再生"}
-							</button>
-							<button
-								type="button"
-								className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40 dark:border-gray-600"
-								onClick={stepForward}
-								disabled={!canForward}
-							>
-								進む ▶
-							</button>
-							<label className="ml-2 text-sm text-gray-600 dark:text-gray-400">
-								速度
-								<select
-									className="ml-1 rounded border border-gray-300 bg-transparent px-1 py-0.5 dark:border-gray-600"
-									value={speed}
-									onChange={(e) => setSpeed(Number(e.target.value))}
-								>
-									{SPEEDS.map((s) => (
-										<option key={s} value={s}>
-											{s}x
-										</option>
-									))}
-								</select>
-							</label>
-							<span className="ml-auto text-sm text-gray-500">
-								{cursor + 1} / {frameCount}
-							</span>
-						</div>
-
-						<div className="mt-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-							<AutomatonDiagram
-								key={machine.id}
-								spec={machine.spec}
-								current={currentState}
-							/>
-						</div>
-
-						<ConfigView frame={frame} />
-					</>
-				) : (
-					<p className="mt-4 text-gray-500">
-						上のボタンで機械を読み込んでください。
-					</p>
-				)}
+				<div className="mt-3 flex flex-wrap items-center gap-1">
+					<button
+						type="button"
+						aria-label="最初へ"
+						className={CTRL}
+						onClick={reset}
+					>
+						↺
+					</button>
+					<button
+						type="button"
+						aria-label="戻る"
+						className={CTRL}
+						onClick={stepBack}
+						disabled={!canBack}
+					>
+						◀
+					</button>
+					<button
+						type="button"
+						aria-label={playing ? "一時停止" : "再生"}
+						className={CTRL}
+						onClick={playing ? pause : play}
+					>
+						{playing ? "⏸" : "▶"}
+					</button>
+					<button
+						type="button"
+						aria-label="進む"
+						className={CTRL}
+						onClick={stepForward}
+						disabled={!canForward}
+					>
+						⏭
+					</button>
+					<select
+						aria-label="速度"
+						className="rounded border border-gray-300 bg-transparent px-1 py-0.5 text-sm dark:border-gray-600"
+						value={speed}
+						onChange={(e) => setSpeed(Number(e.target.value))}
+					>
+						{SPEEDS.map((s) => (
+							<option key={s} value={s}>
+								{s}x
+							</option>
+						))}
+					</select>
+					<span className="ml-auto text-gray-500 text-sm">
+						{cursor + 1} / {frameCount}
+					</span>
+				</div>
 			</div>
+
+			{/* テープ/状態(下部中央) */}
+			{frame && (
+				<div
+					className={`absolute bottom-3 left-1/2 z-20 max-w-[90vw] -translate-x-1/2 overflow-x-auto p-3 ${PANEL}`}
+				>
+					<ConfigView frame={frame} />
+				</div>
+			)}
 		</main>
 	);
 }

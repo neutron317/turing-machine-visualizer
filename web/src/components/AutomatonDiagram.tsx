@@ -114,11 +114,14 @@ function selfLoop(p: Point, c: number): { d: string; lx: number; ly: number } {
 export function AutomatonDiagram({
 	spec,
 	current,
+	fired,
 }: {
 	spec: DFASpec | DTMSpec;
 	current: string;
+	fired?: { from: string; to: string } | null;
 }) {
 	const { states, accept, start, edges } = toGraph(spec);
+	const firedKey = fired ? JSON.stringify([fired.from, fired.to]) : null;
 	const n = states.length;
 	const R = 46 + 20 * n;
 	// ラベル幅(11px monospace ≈ 6.6px/字)を余白に織り込み、側方ノードのまとめ
@@ -218,8 +221,8 @@ export function AutomatonDiagram({
 		"rounded border border-gray-300 bg-white/80 px-2 py-0.5 text-sm hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800/80 dark:hover:bg-gray-700";
 
 	return (
-		<div className="relative">
-			<div className="absolute top-1 right-1 z-10 flex gap-1">
+		<div className="relative h-full w-full">
+			<div className="absolute top-2 right-2 z-10 flex gap-1">
 				<button
 					type="button"
 					aria-label="縮小"
@@ -243,7 +246,8 @@ export function AutomatonDiagram({
 			<svg
 				ref={svgRef}
 				viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
-				className="mx-auto h-auto w-full max-w-md touch-none cursor-grab text-gray-400 active:cursor-grabbing dark:text-gray-500"
+				preserveAspectRatio="xMidYMid meet"
+				className="h-full w-full touch-none cursor-grab text-gray-400 active:cursor-grabbing dark:text-gray-500"
 				role="img"
 				aria-label="状態遷移図"
 				onPointerDown={onPointerDown}
@@ -263,6 +267,17 @@ export function AutomatonDiagram({
 						orient="auto-start-reverse"
 					>
 						<path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+					</marker>
+					<marker
+						id="arrow-active"
+						viewBox="0 0 10 10"
+						refX="9"
+						refY="5"
+						markerWidth="7"
+						markerHeight="7"
+						orient="auto-start-reverse"
+					>
+						<path d="M 0 0 L 10 5 L 0 10 z" className="fill-blue-500" />
 					</marker>
 				</defs>
 
@@ -285,21 +300,27 @@ export function AutomatonDiagram({
 						return null;
 					}
 					const geo = e.from === e.to ? selfLoop(a, c) : curve(a, b);
+					const isFired = JSON.stringify([e.from, e.to]) === firedKey;
 					return (
-						<g key={JSON.stringify([e.from, e.to])}>
+						<g key={JSON.stringify([e.from, e.to])} data-fired={isFired}>
 							<path
 								d={geo.d}
 								fill="none"
 								stroke="currentColor"
-								strokeWidth={1.5}
-								markerEnd="url(#arrow)"
+								className={isFired ? "stroke-blue-500" : undefined}
+								strokeWidth={isFired ? 2.5 : 1.5}
+								markerEnd={isFired ? "url(#arrow-active)" : "url(#arrow)"}
 							/>
 							<text
 								x={geo.lx}
 								y={geo.ly}
 								textAnchor="middle"
 								dominantBaseline="middle"
-								className="fill-gray-600 font-mono text-[11px] dark:fill-gray-300"
+								className={
+									isFired
+										? "fill-blue-600 font-bold font-mono text-[11px] dark:fill-blue-300"
+										: "fill-gray-600 font-mono text-[11px] dark:fill-gray-300"
+								}
 							>
 								{e.label}
 							</text>

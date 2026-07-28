@@ -40,6 +40,21 @@ describe("AutomatonDiagram", () => {
 		expect(active?.getAttribute("data-state")).toBe("P1");
 	});
 
+	it("発火した遷移の矢印を強調する(data-fired + 専用マーカー)", () => {
+		const { container } = render(
+			<AutomatonDiagram
+				spec={dfaSpec}
+				current="Odd"
+				fired={{ from: "Even", to: "Odd" }}
+			/>,
+		);
+		const firedEdges = container.querySelectorAll('[data-fired="true"]');
+		expect(firedEdges.length).toBe(1);
+		expect(
+			firedEdges[0]?.querySelector("path")?.getAttribute("marker-end"),
+		).toContain("arrow-active");
+	});
+
 	it("拡大ボタンで viewBox が狭まり、リセットで戻る", () => {
 		const { container, getByRole } = render(
 			<AutomatonDiagram spec={dfaSpec} current="Even" />,
