@@ -12,6 +12,7 @@ import {
 	decodeMachine,
 	downloadText,
 	encodeMachine,
+	machineFileName,
 } from "./components/machineFile.ts";
 import { SpecEditor } from "./components/SpecEditor.tsx";
 import { SymbolPalette } from "./components/SymbolPalette.tsx";
@@ -74,6 +75,8 @@ export default function App() {
 	const [draft, setDraft] = useState<Draft>(() => draftFromMachine(machine));
 	// 新規機械の連番。
 	const newIdRef = useRef(0);
+	// ファイル読込エラーの表示(role=alert)。
+	const [loadError, setLoadError] = useState<string | null>(null);
 
 	const frame = useReplayStore(selectCurrentFrame);
 	const cursor = useReplayStore((s) => s.cursor);
@@ -174,11 +177,11 @@ export default function App() {
 		setSelectedId(m.id);
 		setInputText(m.input);
 		setDraft(draftFromMachine(m));
+		setLoadError(null); // 新規作成したら読込エラー表示は消す
 	};
 
 	// --- ファイル保存/読込(できるだけ軽量な JSON) ---
 	const fileRef = useRef<HTMLInputElement>(null);
-	const [loadError, setLoadError] = useState<string | null>(null);
 	const saveMachine = () => {
 		const text = encodeMachine({
 			kind: machine.kind,
@@ -186,11 +189,13 @@ export default function App() {
 			input: inputText,
 			spec: machine.spec,
 		});
-		downloadText(`${machine.label || "machine"}.json`, text);
+		downloadText(machineFileName(machine.label), text);
 	};
 	const onLoadFile = async (e: ReactChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		e.target.value = ""; // 同じファイルを続けて選べるようにクリアする
+		// 直前のエラーを一旦消す(同じエラーでも role=alert が再度読み上げられるように)。
+		setLoadError(null);
 		if (!file) {
 			return;
 		}
@@ -301,6 +306,7 @@ export default function App() {
 		setSelectedId(m.id);
 		setInputText(m.input);
 		setDraft(draftFromMachine(m));
+		setLoadError(null); // 別機械へ移ったら読込エラー表示は消す
 	};
 
 	const currentState = frame?.config.state ?? machine.spec.start;

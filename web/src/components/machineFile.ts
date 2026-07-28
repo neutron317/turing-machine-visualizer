@@ -7,8 +7,11 @@ import type { Kind, Spec } from "../store/replay.ts";
 // ミニファイした JSON エンベロープ(id は保存せず、読込時に振り直す)。
 // v はフォーマットのバージョン(将来の互換用)。
 
+// フォーマットのバージョン。encode と schema で共有する(単一点で更新できるように)。
+const FORMAT_VERSION = 1;
+
 const envelopeSchema = z.object({
-	v: z.literal(1),
+	v: z.literal(FORMAT_VERSION),
 	kind: z.enum(["dfa", "dtm"]),
 	label: z.string(),
 	input: z.string(),
@@ -23,12 +26,19 @@ export function encodeMachine(m: {
 	spec: Spec;
 }): string {
 	return JSON.stringify({
-		v: 1,
+		v: FORMAT_VERSION,
 		kind: m.kind,
 		label: m.label,
 		input: m.input,
 		spec: m.spec,
 	});
+}
+
+// ラベルから安全な保存ファイル名を作る。空白のみ/空はフォールバックし、ファイル名に
+// 使えない文字(と制御文字)は _ へ置換する。
+export function machineFileName(label: string): string {
+	const base = label.trim().replace(/[\\/:*?"<>|]/g, "_");
+	return `${base || "machine"}.json`;
 }
 
 // 保存テキストから機械を復元する。id は呼び出し側が採番して渡す。spec は kind に
@@ -62,13 +72,17 @@ export function decodeMachine(
 	return { machine: { id, kind: "dtm", label, input, spec: parsed.data } };
 }
 
-// 保存テキストをファイルとしてダウンロードさせる(ブラウザのみ)。
+// 保存テキストをファイルとしてダウンロードさせる(ブラウザのみ)。<a> を DOM に挿入
+// してからクリックし、revoke は次のタスクへ遅延させる(Safari 等で click 直後の同期
+// revoke だと保存に失敗することがあるため)。
 export function downloadText(filename: string, text: string): void {
 	const blob = new Blob([text], { type: "application/json" });
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement("a");
 	a.href = url;
 	a.download = filename;
+	document.body.append(a);
 	a.click();
-	URL.revokeObjectURL(url);
+	a.remove();
+	setTimeout(() => URL.revokeObjectURL(url), 0);
 }

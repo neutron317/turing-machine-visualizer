@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { machines } from "../fixtures/machines.ts";
-import { decodeMachine, encodeMachine } from "./machineFile.ts";
+import {
+	decodeMachine,
+	encodeMachine,
+	machineFileName,
+} from "./machineFile.ts";
 
 describe("machineFile", () => {
 	it("encode → decode で機械が往復する(DFA / DTM)", () => {
@@ -42,6 +46,16 @@ describe("machineFile", () => {
 	it("エンベロープ不正(必須欠落)は error を返す", () => {
 		const res = decodeMachine(JSON.stringify({ v: 1, kind: "dfa" }), "x");
 		expect("error" in res).toBe(true);
+	});
+
+	it("保存ファイル名: 空/空白はフォールバック、無効文字は _ に", () => {
+		expect(machineFileName("even")).toBe("even.json");
+		expect(machineFileName("")).toBe("machine.json");
+		expect(machineFileName("   ")).toBe("machine.json");
+		expect(machineFileName("a/b:c")).toBe("a_b_c.json");
+		// スペースやハイフンは有効な文字なので残す(無効文字のみ置換)。
+		expect(machineFileName("DFA: x")).toBe("DFA_ x.json");
+		expect(machineFileName("even-a")).toBe("even-a.json");
 	});
 
 	it("spec が契約に一致しないと error を返す", () => {

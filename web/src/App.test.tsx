@@ -238,6 +238,45 @@ describe("App(再生 UI)", () => {
 		);
 	});
 
+	it("壊れたファイルを読み込むと role=alert でエラー表示する", async () => {
+		render(<App />);
+		fireEvent.change(screen.getByLabelText("機械ファイルを読み込み"), {
+			target: { files: [new File(["{bad json"], "m.json")] },
+		});
+		expect(await screen.findByRole("alert")).toHaveTextContent(/JSON/);
+	});
+
+	it("同じファイルを続けて読み込める(input をクリアする)", async () => {
+		render(<App />);
+		const encoded = JSON.stringify({
+			v: 1,
+			kind: "dfa",
+			label: "再読込",
+			input: "",
+			spec: {
+				states: ["S"],
+				alphabet: [],
+				start: "S",
+				accept: ["S"],
+				transitions: [],
+			},
+		});
+		const input = screen.getByLabelText(
+			"機械ファイルを読み込み",
+		) as HTMLInputElement;
+		fireEvent.change(input, {
+			target: { files: [new File([encoded], "m.json")] },
+		});
+		await screen.findByRole("button", { name: "再読込" });
+		expect(input.value).toBe(""); // 再選択できるようクリアされる
+		fireEvent.change(input, {
+			target: { files: [new File([encoded], "m.json")] },
+		});
+		await waitFor(() =>
+			expect(screen.getAllByRole("button", { name: "再読込" })).toHaveLength(2),
+		);
+	});
+
 	it("保存ボタンでダウンロードを実行する", () => {
 		const origCreate = URL.createObjectURL;
 		const origRevoke = URL.revokeObjectURL;
