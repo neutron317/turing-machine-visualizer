@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { machines } from "../fixtures/machines.ts";
 import {
 	addState,
 	buildSpec,
@@ -6,10 +7,12 @@ import {
 	deleteState,
 	deriveStates,
 	deriveSymbols,
+	draftFromMachine,
 	draftGraph,
 	freshState,
 	invalidRowIndices,
 	renameState,
+	specSignature,
 } from "./specDraft.ts";
 
 const dfaDraft: Draft = {
@@ -143,7 +146,37 @@ describe("invalidRowIndices", () => {
 	});
 });
 
+describe("round-trip(commit ガードの前提)", () => {
+	it("buildSpec(draftFromMachine(m)) は記号順を除き元の spec と一致する", () => {
+		for (const m of machines) {
+			const built = buildSpec(draftFromMachine(m), m.kind === "dfa").spec;
+			expect(built).toBeDefined();
+			// specSignature は記号順を無視するので、読み込み/切替で再コミットされない。
+			expect(built && specSignature(built)).toBe(specSignature(m.spec));
+		}
+	});
+});
+
 describe("draftGraph", () => {
+	it("同一 (from,to) をまとめ、片方が無効なら辺全体を無効にする", () => {
+		const graph = draftGraph(
+			{
+				states: ["A", "B"],
+				start: "A",
+				accept: [],
+				rows: [
+					{ from: "A", read: "a", to: "B", write: "", move: "R" }, // 有効
+					{ from: "A", read: "", to: "B", write: "", move: "R" }, // 無効(read 空)
+				],
+			},
+			true,
+		);
+		const ab = graph.edges.filter((e) => e.from === "A" && e.to === "B");
+		expect(ab).toHaveLength(1); // 同一 (from,to) は 1 辺にまとまる
+		expect(ab[0]?.label).toContain(","); // ラベルは連結される
+		expect(ab[0]?.valid).toBe(false); // 片方が無効なら辺全体を無効に
+	});
+
 	it("無効な遷移も valid:false として辺に含める", () => {
 		const graph = draftGraph(
 			{
@@ -219,6 +252,16 @@ describe("状態の操作", () => {
 		expect(d.rows).toEqual([]); // A を含む遷移は消える
 		expect(d.accept).toEqual([]);
 		expect(d.start).toBe("B"); // 消えた start は残りの先頭へ
+	});
+
+	it("renameState は空名(未入力の番兵)を対象にせず draft を変えない", () => {
+		const before: Draft = {
+			states: ["A"],
+			start: "A",
+			accept: [],
+			rows: [{ from: "", read: "", to: "", write: "", move: "R" }],
+		};
+		expect(renameState(before, "", "q9")).toEqual(before);
 	});
 
 	it("renameState は states・start・accept・遷移の参照を追従して改名する", () => {

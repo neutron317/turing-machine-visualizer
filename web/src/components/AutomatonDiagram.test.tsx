@@ -5,9 +5,34 @@ import { AutomatonDiagram } from "./AutomatonDiagram.tsx";
 import { draftFromMachine, draftGraph } from "./specDraft.ts";
 
 const dfaGraph = draftGraph(draftFromMachine(machines[0]), true); // even-a
+// 2 ノード(A=320,82 / B=320,558)・辺なしの編集用グラフ。
+const twoNode = draftGraph(
+	{ states: ["A", "B"], start: "A", accept: [], rows: [] },
+	true,
+);
 
 function vbWidth(svg: Element | null): number {
 	return Number(svg?.getAttribute("viewBox")?.split(" ")[2]);
+}
+
+// jsdom はレイアウト非対応。rect を確定させ client 座標 = viewBox 座標にする。
+function prepareSvg(container: HTMLElement): SVGSVGElement {
+	const svg = container.querySelector("svg") as SVGSVGElement;
+	svg.setPointerCapture = () => {};
+	svg.getBoundingClientRect = () =>
+		({
+			left: 0,
+			top: 0,
+			width: 640,
+			height: 640,
+			right: 640,
+			bottom: 640,
+			x: 0,
+			y: 0,
+			toJSON: () => {},
+			// biome-ignore lint/suspicious/noExplicitAny: テスト用のダミー rect
+		}) as any;
+	return svg;
 }
 
 describe("AutomatonDiagram", () => {
@@ -127,6 +152,57 @@ describe("AutomatonDiagram", () => {
 		fireEvent.pointerMove(svg, { clientX: 320, clientY: 300 });
 		fireEvent.pointerUp(svg, { clientX: 320, clientY: 558 });
 		expect(onAddTransition).toHaveBeenCalledWith("A", "B");
+	});
+
+	it("編集: クリックのみ(移動なし)では遷移を追加しない", () => {
+		const onAddTransition = vi.fn();
+		const { container } = render(
+			<AutomatonDiagram
+				graph={twoNode}
+				current="A"
+				editable
+				onAddTransition={onAddTransition}
+			/>,
+		);
+		const svg = prepareSvg(container);
+		// ノード A 上で押して動かさず離す(誤クリック)→ 遷移は増やさない。
+		fireEvent.pointerDown(svg, { clientX: 320, clientY: 82 });
+		fireEvent.pointerUp(svg, { clientX: 320, clientY: 82 });
+		expect(onAddTransition).not.toHaveBeenCalled();
+	});
+
+	it("編集: ノードへ戻すドラッグで自己ループ(A→A)を追加できる", () => {
+		const onAddTransition = vi.fn();
+		const { container } = render(
+			<AutomatonDiagram
+				graph={twoNode}
+				current="A"
+				editable
+				onAddTransition={onAddTransition}
+			/>,
+		);
+		const svg = prepareSvg(container);
+		fireEvent.pointerDown(svg, { clientX: 320, clientY: 82 });
+		fireEvent.pointerMove(svg, { clientX: 340, clientY: 100 });
+		fireEvent.pointerUp(svg, { clientX: 320, clientY: 82 });
+		expect(onAddTransition).toHaveBeenCalledWith("A", "A");
+	});
+
+	it("編集: 空白で離すと遷移を追加しない", () => {
+		const onAddTransition = vi.fn();
+		const { container } = render(
+			<AutomatonDiagram
+				graph={twoNode}
+				current="A"
+				editable
+				onAddTransition={onAddTransition}
+			/>,
+		);
+		const svg = prepareSvg(container);
+		fireEvent.pointerDown(svg, { clientX: 320, clientY: 82 });
+		fireEvent.pointerMove(svg, { clientX: 200, clientY: 300 });
+		fireEvent.pointerUp(svg, { clientX: 10, clientY: 10 }); // 空白で離す
+		expect(onAddTransition).not.toHaveBeenCalled();
 	});
 
 	it("ズームスライダーで viewBox が狭まり、リセットで戻る", () => {

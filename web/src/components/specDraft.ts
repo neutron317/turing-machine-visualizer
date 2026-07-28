@@ -108,13 +108,21 @@ export function invalidRowIndices(rows: Row[], isDfa: boolean): Set<number> {
 }
 
 // 状態集合: 明示 states に加え、start・accept・遷移の from/to を取り込む。
+// 空文字はセルの未入力を表す番兵なので状態としては扱わない。
 export function deriveStates(draft: Draft): string[] {
-	const set = new Set<string>(draft.states);
+	const set = new Set<string>();
+	for (const s of draft.states) {
+		if (s !== "") {
+			set.add(s);
+		}
+	}
 	if (draft.start !== "") {
 		set.add(draft.start);
 	}
 	for (const s of draft.accept) {
-		set.add(s);
+		if (s !== "") {
+			set.add(s);
+		}
 	}
 	for (const r of completeRows(draft.rows)) {
 		set.add(r.from);
@@ -240,6 +248,18 @@ export function buildSpec(
 	return { spec: parsed.data as DTMSpec };
 }
 
+// 記号(アルファベット/テープ記号)の並び順を無視した spec の署名。読み込み/切替
+// 時の冗長な再コミット(記号順の違いだけの差分)を抑えるための比較に使う。
+export function specSignature(spec: Spec): string {
+	if ("alphabet" in spec) {
+		return JSON.stringify({ ...spec, alphabet: [...spec.alphabet].sort() });
+	}
+	return JSON.stringify({
+		...spec,
+		tapeAlphabet: [...spec.tapeAlphabet].sort(),
+	});
+}
+
 // 未使用の状態名 qN を作る(既存 states と衝突しない最小の連番)。
 export function freshState(states: string[]): string {
 	const set = new Set(states);
@@ -272,6 +292,10 @@ export function renameState(
 	oldName: string,
 	newName: string,
 ): Draft {
+	// 空文字は未入力セルの番兵。改名の対象にすると空欄の行を巻き込むので無視する。
+	if (oldName === "") {
+		return draft;
+	}
 	const rep = (s: string) => (s === oldName ? newName : s);
 	return {
 		states: draft.states.map(rep),

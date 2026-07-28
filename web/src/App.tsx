@@ -14,6 +14,7 @@ import {
 	type Draft,
 	draftFromMachine,
 	draftGraph,
+	specSignature,
 } from "./components/specDraft.ts";
 import { TraceHistory } from "./components/TraceHistory.tsx";
 import { initialDfaConfig, initialDtmConfig } from "./contract/initial.ts";
@@ -102,7 +103,8 @@ export default function App() {
 		// 再実行や、記号の暗黙並べ替えの取りこぼしを避ける)。
 		setMachineList((list) => {
 			const cur = list.find((m) => m.id === selectedId);
-			if (cur && JSON.stringify(cur.spec) === JSON.stringify(spec)) {
+			// 記号順の違いだけなら再コミットしない(冗長な再実行と並べ替えを避ける)。
+			if (cur && specSignature(cur.spec) === specSignature(spec)) {
 				return list;
 			}
 			return list.map((m) =>

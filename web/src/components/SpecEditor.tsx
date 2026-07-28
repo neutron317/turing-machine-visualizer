@@ -4,6 +4,7 @@ import {
 	deleteState,
 	deriveStates,
 	deriveSymbols,
+	invalidRowIndices,
 	renameState,
 } from "./specDraft.ts";
 
@@ -25,6 +26,8 @@ export function SpecEditor({
 	const rows = draft.rows;
 	const states = deriveStates(draft);
 	const symbols = deriveSymbols(rows, isDfa);
+	// 無効な遷移(記号不正・決定性違反)の件数。色以外の手掛かりとして注記に使う。
+	const invalidCount = invalidRowIndices(rows, isDfa).size;
 
 	const updateRow = (i: number, patch: Partial<Draft["rows"][number]>) => {
 		onChange({
@@ -52,6 +55,8 @@ export function SpecEditor({
 		"min-w-0 rounded border border-gray-300 px-1 py-0.5 font-mono text-sm dark:border-gray-600 dark:bg-gray-700";
 	const btn =
 		"rounded border border-gray-300 px-2 py-0.5 text-xs dark:border-gray-600 dark:hover:bg-gray-700";
+	const del =
+		"rounded px-1 text-gray-400 text-xs hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700";
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -65,12 +70,17 @@ export function SpecEditor({
 							aria-label={`state ${i}`}
 							className={`${cell} flex-1`}
 							value={s}
-							onChange={(e) => onChange(renameState(draft, s, e.target.value))}
+							onChange={(e) => {
+								// 空欄への改名は無視(名前を消すのは × で。空文字は未入力の番兵)。
+								if (e.target.value !== "") {
+									onChange(renameState(draft, s, e.target.value));
+								}
+							}}
 						/>
 						<label className="flex items-center gap-0.5 text-gray-500 text-xs">
 							<input
 								type="checkbox"
-								aria-label={`accept ${s}`}
+								aria-label={`受理 ${s}`}
 								checked={draft.accept.includes(s)}
 								onChange={(e) => toggleAccept(s, e.target.checked)}
 							/>
@@ -79,7 +89,7 @@ export function SpecEditor({
 						<button
 							type="button"
 							aria-label={`状態 ${s} を消去`}
-							className="rounded px-1 text-gray-400 text-xs hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700"
+							className={del}
 							onClick={() => onChange(deleteState(draft, s))}
 						>
 							×
@@ -187,7 +197,7 @@ export function SpecEditor({
 									<button
 										type="button"
 										aria-label={`delete ${i}`}
-										className="rounded px-1 text-gray-400 text-xs hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700"
+										className={del}
 										onClick={() => removeRow(i)}
 									>
 										×
@@ -201,6 +211,12 @@ export function SpecEditor({
 			{error && (
 				<div role="alert" className="text-red-600 text-xs">
 					{error}
+				</div>
+			)}
+			{invalidCount > 0 && (
+				<div className="text-red-600 text-xs">
+					⚠ 無効な遷移が {invalidCount}{" "}
+					件あります(図で赤・破線。実行からは除外)。
 				</div>
 			)}
 			<button type="button" className={`self-start ${btn}`} onClick={addRow}>

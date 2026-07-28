@@ -143,7 +143,7 @@ export function AutomatonDiagram({
 	const svgRef = useRef<SVGSVGElement>(null);
 	const [vb, setVb] = useState(() => ({ x: 0, y: 0, w: size, h: size }));
 	// ドラッグの種別: pan(視点移動)か link(遷移の作図)。moved でクリックと
-	// ドラッグを区別する(空白クリック=状態追加、ドラッグ=パン/遷移作図)。
+	// ドラッグを区別する(小さなクリックはパン、ノード間ドラッグは遷移作図)。
 	const gesture = useRef<{
 		kind: "pan" | "link";
 		from?: string;
@@ -313,7 +313,7 @@ export function AutomatonDiagram({
 					リセット
 				</button>
 				{editable && (
-					<span className="max-w-16 text-center text-[10px] text-gray-400 leading-tight">
+					<span className="max-w-16 text-center text-[11px] text-gray-600 leading-tight dark:text-gray-300">
 						ドラッグで遷移を追加
 					</span>
 				)}
@@ -395,6 +395,7 @@ export function AutomatonDiagram({
 											: "stroke-red-500"
 								}
 								strokeWidth={isFired ? 2.5 : 1.5}
+								strokeDasharray={e.valid ? undefined : "6 4"}
 								markerEnd={isFired ? "url(#arrow-active)" : "url(#arrow)"}
 							/>
 							<text
