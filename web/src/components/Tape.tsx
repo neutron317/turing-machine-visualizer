@@ -29,8 +29,8 @@ export function Tape({
 			<div className="text-sm text-gray-500">テープ(▼ = ヘッド)</div>
 			<div className="mt-1 overflow-x-auto pb-1">
 				<div className="inline-block">
-					{/* ヘッドポインタ */}
-					<div className="flex">
+					{/* ヘッドポインタ(セル帯と同じ 1px 分だけ内側に寄せて列を揃える) */}
+					<div className="flex border border-transparent">
 						{cells.map((_, i) => (
 							// biome-ignore lint/suspicious/noArrayIndexKey: テープはセル位置そのものがキーの意味を持つ
 							<div key={i} className="flex w-9 justify-center">
