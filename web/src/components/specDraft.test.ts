@@ -1,25 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
+	addState,
 	buildSpec,
 	type Draft,
+	deleteState,
 	deriveStates,
 	deriveSymbols,
+	draftGraph,
 	freshState,
+	invalidRowIndices,
+	renameState,
 } from "./specDraft.ts";
 
 const dfaDraft: Draft = {
 	states: ["A", "B"],
 	start: "A",
-	accept: "A",
+	accept: ["A"],
 	rows: [{ from: "A", read: "a", to: "B", write: "", move: "R" }],
 };
 
 const dtmDraft: Draft = {
 	states: ["P"],
 	start: "P",
-	accept: "",
+	accept: [],
 	rows: [{ from: "P", read: "a", to: "P", write: "b", move: "R" }],
 };
+
+// biome-ignore lint/suspicious/noExplicitAny: テストで spec を緩く読む
+const asAny = (spec: unknown): any => spec;
 
 describe("buildSpec", () => {
 	it("DFA の draft から spec を組み立てる(記号は read から自動導出)", () => {
@@ -35,9 +43,7 @@ describe("buildSpec", () => {
 	});
 
 	it("DTM は read と write からテープ記号を自動導出する", () => {
-		const { spec } = buildSpec(dtmDraft, false);
-		// biome-ignore lint/suspicious/noExplicitAny: テストで spec を緩く読む
-		const s = spec as any;
+		const s = asAny(buildSpec(dtmDraft, false).spec);
 		expect(s.tapeAlphabet).toEqual(["a", "b"]);
 		expect(s.transitions[0]).toEqual({
 			from: "P",
@@ -49,15 +55,15 @@ describe("buildSpec", () => {
 	});
 
 	it("DTM の空欄 read/write は null(空白セル)", () => {
-		const { spec } = buildSpec(
-			{
-				...dtmDraft,
-				rows: [{ from: "P", read: "", to: "P", write: "", move: "R" }],
-			},
-			false,
+		const s = asAny(
+			buildSpec(
+				{
+					...dtmDraft,
+					rows: [{ from: "P", read: "", to: "P", write: "", move: "R" }],
+				},
+				false,
+			).spec,
 		);
-		// biome-ignore lint/suspicious/noExplicitAny: テストで spec を緩く読む
-		const s = spec as any;
 		expect(s.tapeAlphabet).toEqual([]);
 		expect(s.transitions[0]).toEqual({
 			from: "P",
@@ -68,51 +74,93 @@ describe("buildSpec", () => {
 		});
 	});
 
-	it("初期状態が空だとエラー", () => {
+	it("初期状態が空だと error(spec は作らない)", () => {
 		const { spec, error } = buildSpec({ ...dfaDraft, start: "" }, true);
 		expect(spec).toBeUndefined();
-		expect(error).toMatch(/必須/);
+		expect(error).toMatch(/初期状態/);
 	});
 
-	it("同じ (from, read) が重複するとエラー(決定性)", () => {
-		const { error } = buildSpec(
-			{
-				...dfaDraft,
-				rows: [
-					{ from: "A", read: "a", to: "B", write: "", move: "R" },
-					{ from: "A", read: "a", to: "A", write: "", move: "R" },
-				],
-			},
-			true,
+	it("無効な遷移(DFA の read 空・決定性違反)は除外して spec を作る", () => {
+		// read 空(無効)+ 正常行。read 空は除外され、spec は正常行のみ。
+		const s = asAny(
+			buildSpec(
+				{
+					...dfaDraft,
+					rows: [
+						{ from: "A", read: "a", to: "B", write: "", move: "R" },
+						{ from: "A", read: "", to: "A", write: "", move: "R" },
+					],
+				},
+				true,
+			).spec,
 		);
-		expect(error).toMatch(/重複/);
+		expect(s.transitions).toEqual([{ from: "A", read: "a", to: "B" }]);
+	});
+
+	it("決定性違反の行は両方とも除外する", () => {
+		const s = asAny(
+			buildSpec(
+				{
+					...dfaDraft,
+					rows: [
+						{ from: "A", read: "a", to: "B", write: "", move: "R" },
+						{ from: "A", read: "a", to: "A", write: "", move: "R" },
+					],
+				},
+				true,
+			).spec,
+		);
+		expect(s.transitions).toEqual([]);
 	});
 
 	it("未完成の行(from/to が空)は無視する", () => {
-		const { spec } = buildSpec(
+		const s = asAny(
+			buildSpec(
+				{
+					...dfaDraft,
+					rows: [
+						{ from: "A", read: "a", to: "B", write: "", move: "R" },
+						{ from: "", read: "", to: "", write: "", move: "R" },
+					],
+				},
+				true,
+			).spec,
+		);
+		expect(s.transitions).toHaveLength(1);
+	});
+});
+
+describe("invalidRowIndices", () => {
+	it("DFA の read 空・決定性違反を無効として拾う", () => {
+		const rows = [
+			{ from: "A", read: "a", to: "B", write: "", move: "R" as const },
+			{ from: "A", read: "", to: "C", write: "", move: "R" as const }, // read 空
+			{ from: "B", read: "b", to: "A", write: "", move: "R" as const },
+			{ from: "B", read: "b", to: "B", write: "", move: "R" as const }, // (B,b) 重複
+		];
+		const invalid = invalidRowIndices(rows, true);
+		expect([...invalid].sort()).toEqual([1, 2, 3]);
+	});
+});
+
+describe("draftGraph", () => {
+	it("無効な遷移も valid:false として辺に含める", () => {
+		const graph = draftGraph(
 			{
-				...dfaDraft,
+				states: ["A", "B"],
+				start: "A",
+				accept: [],
 				rows: [
 					{ from: "A", read: "a", to: "B", write: "", move: "R" },
-					{ from: "", read: "", to: "", write: "", move: "R" },
+					{ from: "A", read: "", to: "A", write: "", move: "R" }, // 無効(read 空)
 				],
 			},
 			true,
 		);
-		// biome-ignore lint/suspicious/noExplicitAny: テストで spec を緩く読む
-		expect((spec as any).transitions).toHaveLength(1);
-	});
-
-	it("DFA の read が空(from/to は有り)だとエラー", () => {
-		const { spec, error } = buildSpec(
-			{
-				...dfaDraft,
-				rows: [{ from: "A", read: "", to: "B", write: "", move: "R" }],
-			},
-			true,
-		);
-		expect(spec).toBeUndefined();
-		expect(error).toMatch(/1 文字/);
+		const ab = graph.edges.find((e) => e.from === "A" && e.to === "B");
+		const aa = graph.edges.find((e) => e.from === "A" && e.to === "A");
+		expect(ab?.valid).toBe(true);
+		expect(aa?.valid).toBe(false);
 	});
 });
 
@@ -121,7 +169,7 @@ describe("deriveStates", () => {
 		const states = deriveStates({
 			states: ["X"],
 			start: "S",
-			accept: "T, U",
+			accept: ["T", "U"],
 			rows: [{ from: "A", read: "a", to: "B", write: "", move: "R" }],
 		});
 		expect(states).toEqual(
@@ -146,5 +194,53 @@ describe("freshState", () => {
 		expect(freshState([])).toBe("q0");
 		expect(freshState(["q0", "q1"])).toBe("q2");
 		expect(freshState(["q1"])).toBe("q0");
+	});
+});
+
+describe("状態の操作", () => {
+	it("addState は新しい状態を states に足す", () => {
+		expect(addState(dfaDraft).states).toEqual(["A", "B", "q0"]);
+	});
+
+	it("deleteState は状態と、それを参照する遷移・受理・初期を除く", () => {
+		const d = deleteState(
+			{
+				states: ["A", "B"],
+				start: "A",
+				accept: ["A"],
+				rows: [
+					{ from: "A", read: "a", to: "B", write: "", move: "R" },
+					{ from: "B", read: "b", to: "A", write: "", move: "R" },
+				],
+			},
+			"A",
+		);
+		expect(d.states).toEqual(["B"]);
+		expect(d.rows).toEqual([]); // A を含む遷移は消える
+		expect(d.accept).toEqual([]);
+		expect(d.start).toBe("B"); // 消えた start は残りの先頭へ
+	});
+
+	it("renameState は states・start・accept・遷移の参照を追従して改名する", () => {
+		const d = renameState(
+			{
+				states: ["A", "B"],
+				start: "A",
+				accept: ["A"],
+				rows: [{ from: "A", read: "a", to: "B", write: "", move: "R" }],
+			},
+			"A",
+			"S",
+		);
+		expect(d.states).toEqual(["S", "B"]);
+		expect(d.start).toBe("S");
+		expect(d.accept).toEqual(["S"]);
+		expect(d.rows[0]).toEqual({
+			from: "S",
+			read: "a",
+			to: "B",
+			write: "",
+			move: "R",
+		});
 	});
 });

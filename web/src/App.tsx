@@ -12,9 +12,8 @@ import { SymbolPalette } from "./components/SymbolPalette.tsx";
 import {
 	buildSpec,
 	type Draft,
-	deriveStates,
 	draftFromMachine,
-	freshState,
+	draftGraph,
 } from "./components/specDraft.ts";
 import { TraceHistory } from "./components/TraceHistory.tsx";
 import { initialDfaConfig, initialDtmConfig } from "./contract/initial.ts";
@@ -78,8 +77,6 @@ export default function App() {
 	const canBack = useReplayStore(selectCanStepBack);
 	const frames = useReplayStore((s) => s.frames);
 	const error = useReplayStore((s) => s.error);
-	// 実行中の spec(編集して実行したものを状態図に反映するため)。
-	const runningSpec = useReplayStore((s) => s.spec);
 	const {
 		startRun,
 		stepForward,
@@ -91,25 +88,29 @@ export default function App() {
 		setSpeed,
 	} = useReplayStore.getState();
 
-	// draft から spec を組み立てる(未完成/無効なら error)。妥当なら現在の機械へ
-	// コミットし、下の再初期化 effect が実行へ反映する。
+	// draft から spec を組み立てる(無効な遷移は除外。start 空のみ error)。妥当なら
+	// 現在の機械へコミットし、下の再初期化 effect が実行へ反映する。図に見せる用の
+	// グラフ(無効遷移も含む)は別途 draftGraph で作る。
 	const built = useMemo(() => buildSpec(draft, isDfa), [draft, isDfa]);
+	const graph = useMemo(() => draftGraph(draft, isDfa), [draft, isDfa]);
 	useEffect(() => {
 		const spec = built.spec;
 		if (!spec) {
 			return;
 		}
-		setMachineList((list) =>
-			list.map((m) => (m.id === selectedId ? ({ ...m, spec } as Machine) : m)),
-		);
+		// 現在の spec と実質差分があるときだけコミットする(読み込み/切替時の冗長な
+		// 再実行や、記号の暗黙並べ替えの取りこぼしを避ける)。
+		setMachineList((list) => {
+			const cur = list.find((m) => m.id === selectedId);
+			if (cur && JSON.stringify(cur.spec) === JSON.stringify(spec)) {
+				return list;
+			}
+			return list.map((m) =>
+				m.id === selectedId ? ({ ...m, spec } as Machine) : m,
+			);
+		});
 	}, [built, selectedId]);
-	// 図でノードを追加(孤立状態)/ 状態間ドラッグで遷移を追加(read 等は表で入力)。
-	const onAddState = () => {
-		setDraft((d) => ({
-			...d,
-			states: [...d.states, freshState(deriveStates(d))],
-		}));
-	};
+	// 状態間ドラッグで遷移を追加(read/write/move は遷移表で入力。無効なら図に赤表示)。
 	const onAddTransition = (from: string, to: string) => {
 		setDraft((d) => ({
 			...d,
@@ -274,14 +275,13 @@ export default function App() {
 				{frame && (
 					<AutomatonDiagram
 						key={machine.id}
-						spec={runningSpec ?? machine.spec}
+						graph={graph}
 						current={currentState}
 						fired={frame.fired}
 						rightInset={historyOpen ? HISTORY_W : 0}
 						historyOpen={historyOpen}
 						onToggleHistory={() => setHistoryOpen((o) => !o)}
 						editable
-						onAddState={onAddState}
 						onAddTransition={onAddTransition}
 					/>
 				)}

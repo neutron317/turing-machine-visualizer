@@ -4,57 +4,11 @@ import {
 	useRef,
 	useState,
 } from "react";
-import type {
-	DFASpec,
-	DFATrans,
-	DTMSpec,
-	DTMTrans,
-} from "../contract/schemas.ts";
+import type { DisplayGraph } from "./specDraft.ts";
 
 interface Point {
 	x: number;
 	y: number;
-}
-interface Edge {
-	from: string;
-	to: string;
-	label: string;
-}
-
-function sym(x: string | null): string {
-	return x === null ? "␣" : x;
-}
-
-// 遷移ラベル。DFA は read、DTM は read/write,move。
-function transLabel(t: DFATrans | DTMTrans): string {
-	return "move" in t ? `${sym(t.read)}/${sym(t.write)},${t.move}` : sym(t.read);
-}
-
-// spec を状態図の要素へ正規化する。同じ (from,to) の遷移はラベルをまとめる。
-function toGraph(spec: DFASpec | DTMSpec): {
-	states: string[];
-	accept: Set<string>;
-	start: string;
-	edges: Edge[];
-} {
-	const grouped = new Map<string, Edge>();
-	for (const t of spec.transitions) {
-		// 状態名は無制約なので、区切り文字での衝突を避けてタプルを JSON 化する。
-		const key = JSON.stringify([t.from, t.to]);
-		const label = transLabel(t);
-		const g = grouped.get(key);
-		if (g) {
-			g.label += `, ${label}`;
-		} else {
-			grouped.set(key, { from: t.from, to: t.to, label });
-		}
-	}
-	return {
-		states: spec.states,
-		accept: new Set(spec.accept),
-		start: spec.start,
-		edges: [...grouped.values()],
-	};
 }
 
 const R_NODE = 22;
@@ -130,28 +84,26 @@ function clientToSvg(
 }
 
 export function AutomatonDiagram({
-	spec,
+	graph,
 	current,
 	fired,
 	rightInset = 0,
 	historyOpen = false,
 	onToggleHistory,
 	editable = false,
-	onAddState,
 	onAddTransition,
 }: {
-	spec: DFASpec | DTMSpec;
+	graph: DisplayGraph;
 	current: string;
 	fired?: { from: string; to: string } | null;
 	rightInset?: number;
 	historyOpen?: boolean;
 	onToggleHistory?: () => void;
-	// 編集モード: 空白クリックで状態追加、状態間ドラッグで遷移追加。
+	// 編集モード: 状態間ドラッグで遷移を追加(無効な遷移は赤で表示される)。
 	editable?: boolean;
-	onAddState?: () => void;
 	onAddTransition?: (from: string, to: string) => void;
 }) {
-	const { states, accept, start, edges } = toGraph(spec);
+	const { states, accept, start, edges } = graph;
 	const firedKey = fired ? JSON.stringify([fired.from, fired.to]) : null;
 	const n = states.length;
 	// ラベル幅(11px monospace ≈ 6.6px/字)を余白に織り込み、側方ノードのまとめ
@@ -316,11 +268,6 @@ export function AutomatonDiagram({
 					onAddTransition(g.from, target);
 				}
 			}
-			return;
-		}
-		// 空白をパンせずクリックしただけなら状態を追加する。
-		if (editable && !g.moved && onAddState) {
-			onAddState();
 		}
 	};
 	const onPointerCancel = () => {
@@ -367,7 +314,7 @@ export function AutomatonDiagram({
 				</button>
 				{editable && (
 					<span className="max-w-16 text-center text-[10px] text-gray-400 leading-tight">
-						空白クリック=状態 / ドラッグ=遷移
+						ドラッグで遷移を追加
 					</span>
 				)}
 			</div>
@@ -431,12 +378,22 @@ export function AutomatonDiagram({
 					const geo = e.from === e.to ? selfLoop(a, c) : curve(a, b);
 					const isFired = JSON.stringify([e.from, e.to]) === firedKey;
 					return (
-						<g key={JSON.stringify([e.from, e.to])} data-fired={isFired}>
+						<g
+							key={JSON.stringify([e.from, e.to])}
+							data-fired={isFired}
+							data-invalid={!e.valid}
+						>
 							<path
 								d={geo.d}
 								fill="none"
 								stroke="currentColor"
-								className={isFired ? "stroke-blue-500" : undefined}
+								className={
+									isFired
+										? "stroke-blue-500"
+										: e.valid
+											? undefined
+											: "stroke-red-500"
+								}
 								strokeWidth={isFired ? 2.5 : 1.5}
 								markerEnd={isFired ? "url(#arrow-active)" : "url(#arrow)"}
 							/>
@@ -448,7 +405,9 @@ export function AutomatonDiagram({
 								className={
 									isFired
 										? "fill-blue-600 font-bold font-mono text-[11px] dark:fill-blue-300"
-										: "fill-gray-600 font-mono text-[11px] dark:fill-gray-300"
+										: e.valid
+											? "fill-gray-600 font-mono text-[11px] dark:fill-gray-300"
+											: "fill-red-600 font-mono text-[11px] dark:fill-red-400"
 								}
 							>
 								{e.label}

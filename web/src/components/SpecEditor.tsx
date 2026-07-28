@@ -1,9 +1,16 @@
-import { type Draft, deriveStates, deriveSymbols } from "./specDraft.ts";
+import {
+	addState,
+	type Draft,
+	deleteState,
+	deriveStates,
+	deriveSymbols,
+	renameState,
+} from "./specDraft.ts";
 
-// 機械の定義(遷移・初期状態・受理状態)を編集する制御コンポーネント。編集状態は
-// App が draft として保持し、変更は onChange で通知する(App がライブに spec へ反映)。
-// states と 使える記号(アルファベット/テープ記号)は遷移関数から自動導出し、
-// 読み取り専用で一覧表示する。error は App から受け取り role="alert" で表示する。
+// 機械の定義を編集する制御コンポーネント。編集状態は App が draft として保持し、
+// 変更は onChange で通知する(App がライブに spec へ反映)。状態は追加/改名/消去/
+// 初期・受理の指定ができる。使える記号(アルファベット/テープ記号)は遷移関数から
+// 自動導出して読み取り専用で表示する。error は App から受け取り role="alert" で表示。
 export function SpecEditor({
 	draft,
 	isDfa,
@@ -19,7 +26,7 @@ export function SpecEditor({
 	const states = deriveStates(draft);
 	const symbols = deriveSymbols(rows, isDfa);
 
-	const update = (i: number, patch: Partial<Draft["rows"][number]>) => {
+	const updateRow = (i: number, patch: Partial<Draft["rows"][number]>) => {
 		onChange({
 			...draft,
 			rows: rows.map((r, j) => (j === i ? { ...r, ...patch } : r)),
@@ -34,39 +41,83 @@ export function SpecEditor({
 	const removeRow = (i: number) => {
 		onChange({ ...draft, rows: rows.filter((_, j) => j !== i) });
 	};
+	const toggleAccept = (s: string, on: boolean) => {
+		onChange({
+			...draft,
+			accept: on ? [...draft.accept, s] : draft.accept.filter((x) => x !== s),
+		});
+	};
 
 	const cell =
 		"min-w-0 rounded border border-gray-300 px-1 py-0.5 font-mono text-sm dark:border-gray-600 dark:bg-gray-700";
+	const btn =
+		"rounded border border-gray-300 px-2 py-0.5 text-xs dark:border-gray-600 dark:hover:bg-gray-700";
 
 	return (
-		<div className="flex flex-col gap-1">
-			{/* 機械レベルの定義。states と 使える記号 は遷移関数から自動導出(読み取り専用)。 */}
-			<div className="flex flex-col gap-1 text-xs">
-				<label className="flex items-center gap-1">
-					<span className="w-16 shrink-0 text-gray-500">初期状態</span>
-					<input
-						className={`${cell} flex-1`}
-						value={draft.start}
-						onChange={(e) => onChange({ ...draft, start: e.target.value })}
-					/>
-				</label>
-				<label className="flex items-center gap-1">
-					<span className="w-16 shrink-0 text-gray-500">受理状態</span>
-					<input
-						className={`${cell} flex-1`}
-						value={draft.accept}
-						onChange={(e) => onChange({ ...draft, accept: e.target.value })}
-						placeholder="カンマ区切り"
-					/>
-				</label>
-				<div className="text-gray-400">
-					状態一覧: {states.length > 0 ? states.join(", ") : "(なし)"}
+		<div className="flex flex-col gap-2">
+			{/* 状態: 改名(入力)・受理(チェック)・消去(×)・追加。初期状態は選択。 */}
+			<div className="flex flex-col gap-1">
+				<div className="text-gray-500 text-xs">状態(受理はチェック)</div>
+				{states.map((s, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: 位置がキー
+					<div key={i} className="flex items-center gap-1">
+						<input
+							aria-label={`state ${i}`}
+							className={`${cell} flex-1`}
+							value={s}
+							onChange={(e) => onChange(renameState(draft, s, e.target.value))}
+						/>
+						<label className="flex items-center gap-0.5 text-gray-500 text-xs">
+							<input
+								type="checkbox"
+								aria-label={`accept ${s}`}
+								checked={draft.accept.includes(s)}
+								onChange={(e) => toggleAccept(s, e.target.checked)}
+							/>
+							受理
+						</label>
+						<button
+							type="button"
+							aria-label={`状態 ${s} を消去`}
+							className="rounded px-1 text-gray-400 text-xs hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700"
+							onClick={() => onChange(deleteState(draft, s))}
+						>
+							×
+						</button>
+					</div>
+				))}
+				<div className="flex items-center gap-2">
+					<button
+						type="button"
+						className={btn}
+						onClick={() => onChange(addState(draft))}
+					>
+						状態を追加
+					</button>
+					<label className="flex items-center gap-1 text-xs">
+						<span className="text-gray-500">初期状態</span>
+						<select
+							aria-label="初期状態"
+							className={cell}
+							value={draft.start}
+							onChange={(e) => onChange({ ...draft, start: e.target.value })}
+						>
+							<option value="">(未設定)</option>
+							{states.map((s) => (
+								<option key={s} value={s}>
+									{s}
+								</option>
+							))}
+						</select>
+					</label>
 				</div>
-				<div className="text-gray-400">
+				<div className="text-gray-400 text-xs">
 					{isDfa ? "アルファベット" : "テープ記号"}:{" "}
 					{symbols.length > 0 ? symbols.join(", ") : "(なし)"}
 				</div>
 			</div>
+
+			{/* 遷移表 */}
 			<div className="overflow-x-auto">
 				<table className="text-sm">
 					<thead>
@@ -88,7 +139,7 @@ export function SpecEditor({
 										aria-label={`from ${i}`}
 										className={`${cell} w-14`}
 										value={r.from}
-										onChange={(e) => update(i, { from: e.target.value })}
+										onChange={(e) => updateRow(i, { from: e.target.value })}
 									/>
 								</td>
 								<td className="px-0.5 py-0.5">
@@ -96,7 +147,7 @@ export function SpecEditor({
 										aria-label={`read ${i}`}
 										className={`${cell} w-8`}
 										value={r.read}
-										onChange={(e) => update(i, { read: e.target.value })}
+										onChange={(e) => updateRow(i, { read: e.target.value })}
 									/>
 								</td>
 								{!isDfa && (
@@ -105,7 +156,7 @@ export function SpecEditor({
 											aria-label={`write ${i}`}
 											className={`${cell} w-8`}
 											value={r.write}
-											onChange={(e) => update(i, { write: e.target.value })}
+											onChange={(e) => updateRow(i, { write: e.target.value })}
 										/>
 									</td>
 								)}
@@ -116,7 +167,7 @@ export function SpecEditor({
 											className={`${cell}`}
 											value={r.move}
 											onChange={(e) =>
-												update(i, { move: e.target.value as "L" | "R" })
+												updateRow(i, { move: e.target.value as "L" | "R" })
 											}
 										>
 											<option value="L">L</option>
@@ -129,7 +180,7 @@ export function SpecEditor({
 										aria-label={`to ${i}`}
 										className={`${cell} w-14`}
 										value={r.to}
-										onChange={(e) => update(i, { to: e.target.value })}
+										onChange={(e) => updateRow(i, { to: e.target.value })}
 									/>
 								</td>
 								<td className="px-0.5 py-0.5">
@@ -152,11 +203,7 @@ export function SpecEditor({
 					{error}
 				</div>
 			)}
-			<button
-				type="button"
-				className="self-start rounded border border-gray-300 px-2 py-0.5 text-xs dark:border-gray-600 dark:hover:bg-gray-700"
-				onClick={addRow}
-			>
+			<button type="button" className={`self-start ${btn}`} onClick={addRow}>
 				行を追加
 			</button>
 		</div>
