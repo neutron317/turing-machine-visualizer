@@ -22,6 +22,8 @@ import {
 const SPEEDS = [1, 2, 4, 8];
 // 遷移履歴ドロワーの幅(px)。状態図の操作クラスタはこの分だけ左へ寄せる。
 const HISTORY_W = 288;
+// 左固定パネル(遷移表エディタ)の幅(px)。
+const EDITOR_W = 288;
 const PANEL =
 	"rounded-lg border border-gray-200 bg-white/90 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-800/90";
 const CTRL =
@@ -78,8 +80,8 @@ export default function App() {
 	// 編集した入力文字列で現在の機械(プリセット spec)を実行する。
 	const runInput = () => runSpec(machine.spec);
 
-	// 操作板の位置(ドラッグで移動可)。
-	const [panelPos, setPanelPos] = useState({ x: 12, y: 12 });
+	// 操作板の位置(ドラッグで移動可)。既定は左固定パネルと重ならない位置。
+	const [panelPos, setPanelPos] = useState({ x: EDITOR_W + 24, y: 12 });
 	const panelDrag = useRef<{ dx: number; dy: number } | null>(null);
 	const onPanelDown = (e: ReactPointerEvent<HTMLDivElement>) => {
 		panelDrag.current = {
@@ -215,35 +217,28 @@ export default function App() {
 							{m.label}
 						</button>
 					))}
-					<label htmlFor="input-str" className="mt-2 text-gray-500 text-xs">
-						入力(記号を並べる)
-					</label>
-					<div className="flex gap-1">
-						<input
-							id="input-str"
-							type="text"
-							value={inputText}
-							onChange={(e) => setInputText(e.target.value)}
-							onKeyDown={(e) => {
-								// IME 変換確定の Enter で誤って実行しない。
-								if (e.nativeEvent.isComposing) {
-									return;
-								}
-								if (e.key === "Enter") {
-									runInput();
-								}
-							}}
-							className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 font-mono text-sm dark:border-gray-600 dark:bg-gray-700"
-						/>
-						<button type="button" className={CTRL} onClick={runInput}>
-							実行
-						</button>
-					</div>
-					<div className="mt-2 border-gray-200 border-t pt-2 dark:border-gray-700">
-						<SpecEditor key={machine.id} machine={machine} onRun={runSpec} />
-					</div>
 				</div>
 			</div>
+
+			{/* 左固定パネル: 遷移表エディタ。テープ帯の上端で止め(bottomInset)、
+			    中身は上下スクロール。テープの描画を隠さないよう z を下部帯より下に。 */}
+			{frame && (
+				<section
+					className="absolute top-0 left-0 z-10 flex flex-col border-gray-200 border-r bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90"
+					style={{ width: EDITOR_W, bottom: bottomInset }}
+					aria-labelledby="editor-heading"
+				>
+					<h2
+						id="editor-heading"
+						className="border-gray-200 border-b px-3 py-2 font-medium text-gray-600 text-xs dark:border-gray-700 dark:text-gray-300"
+					>
+						遷移関数(編集して実行)
+					</h2>
+					<div className="flex-1 overflow-y-auto px-3 py-2">
+						<SpecEditor key={machine.id} machine={machine} onRun={runSpec} />
+					</div>
+				</section>
+			)}
 
 			{/* 下部: 再生コントロール + テープ + (履歴) */}
 			{frame && (
@@ -299,6 +294,31 @@ export default function App() {
 							<span className="ml-auto text-gray-500 text-sm">
 								{cursor + 1} / {frameCount}
 							</span>
+						</div>
+						{/* 入力(テープの内容)。ここで書いた記号列が初期テープになる。 */}
+						<div className="flex items-center gap-2 px-3 pt-2">
+							<label htmlFor="input-str" className="text-gray-500 text-xs">
+								入力(テープ)
+							</label>
+							<input
+								id="input-str"
+								type="text"
+								value={inputText}
+								onChange={(e) => setInputText(e.target.value)}
+								onKeyDown={(e) => {
+									// IME 変換確定の Enter で誤って実行しない。
+									if (e.nativeEvent.isComposing) {
+										return;
+									}
+									if (e.key === "Enter") {
+										runInput();
+									}
+								}}
+								className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 font-mono text-sm dark:border-gray-600 dark:bg-gray-700"
+							/>
+							<button type="button" className={CTRL} onClick={runInput}>
+								実行
+							</button>
 						</div>
 						<div className="px-3 pb-3">
 							<ConfigView frame={frame} />

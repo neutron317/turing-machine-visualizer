@@ -139,7 +139,6 @@ export function SpecEditor({
 
 	return (
 		<div className="flex flex-col gap-1">
-			<div className="text-gray-500 text-xs">遷移表(編集して実行)</div>
 			<div className="overflow-x-auto">
 				<table className="text-sm">
 					<thead>
