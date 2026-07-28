@@ -7,6 +7,7 @@ import {
 import { AutomatonDiagram } from "./components/AutomatonDiagram.tsx";
 import { ConfigView } from "./components/ConfigView.tsx";
 import { SpecEditor } from "./components/SpecEditor.tsx";
+import { SymbolPalette } from "./components/SymbolPalette.tsx";
 import { TraceHistory } from "./components/TraceHistory.tsx";
 import { initialDfaConfig, initialDtmConfig } from "./contract/initial.ts";
 import type { DFASpec, DTMSpec } from "./contract/schemas.ts";
@@ -204,6 +205,9 @@ export default function App() {
 	};
 
 	const currentState = frame?.config.state ?? machine.spec.start;
+	// 入力(テープ)に使える記号: DFA は alphabet、DTM は tapeAlphabet(契約 §1)。
+	const usableSymbols =
+		machine.kind === "dfa" ? machine.spec.alphabet : machine.spec.tapeAlphabet;
 
 	return (
 		<main className="relative h-screen w-screen overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
@@ -348,6 +352,13 @@ export default function App() {
 							<button type="button" className={CTRL} onClick={runInput}>
 								実行
 							</button>
+						</div>
+						{/* 使える記号の一覧(クリックで入力へ追記)。 */}
+						<div className="px-3 pt-1">
+							<SymbolPalette
+								symbols={usableSymbols}
+								onPick={(s) => setInputText((t) => t + s)}
+							/>
 						</div>
 						<div className="px-3 pb-3">
 							<ConfigView frame={frame} />

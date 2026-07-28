@@ -130,6 +130,27 @@ describe("App(再生 UI)", () => {
 		useReplayStore.getState().pause();
 	});
 
+	it("使える記号を表示し、クリックで入力へ追記する", () => {
+		render(<App />);
+		// DFA(even-a)の alphabet は ["a"]。
+		const chip = screen.getByRole("button", { name: "記号 a を追加" });
+		const input = screen.getByLabelText(/入力/) as HTMLInputElement;
+		expect(input.value).toBe("aa"); // 既定入力
+		fireEvent.click(chip);
+		expect(input.value).toBe("aaa"); // クリックで追記
+	});
+
+	it("DTM では tapeAlphabet の記号を表示する", () => {
+		render(<App />);
+		fireEvent.click(screen.getByRole("button", { name: /DTM/ }));
+		// anbncn の tapeAlphabet は a,b,c,X,Y,Z。
+		for (const s of ["a", "b", "c", "X", "Y", "Z"]) {
+			expect(
+				screen.getByRole("button", { name: `記号 ${s} を追加` }),
+			).toBeInTheDocument();
+		}
+	});
+
 	it("ウィンドウを縮小すると操作板が画面内へクランプされる", () => {
 		render(<App />);
 		const heading = screen.getByRole("heading", {
