@@ -131,42 +131,34 @@ export default function App() {
 
 			{/* 下部: 再生コントロール + テープ(全幅) */}
 			{frame && (
-				<div className="absolute inset-x-0 bottom-0 z-20 border-gray-200 border-t bg-white/90 p-3 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90">
-					<div className="mx-auto flex max-w-5xl flex-col gap-3">
-						<div className="flex flex-wrap items-center gap-2">
-							<button
-								type="button"
-								aria-label="最初へ"
-								className={CTRL}
-								onClick={reset}
-							>
-								↺
+				<div className="absolute inset-x-0 bottom-0 z-20 border-gray-200 border-t bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90">
+					<div className="flex flex-col gap-2">
+						<div className="flex flex-wrap items-center gap-2 px-3 pt-3">
+							<button type="button" className={CTRL} onClick={reset}>
+								最初へ
 							</button>
 							<button
 								type="button"
-								aria-label="戻る"
 								className={CTRL}
 								onClick={stepBack}
 								disabled={!canBack}
 							>
-								◀
+								戻る
 							</button>
 							<button
 								type="button"
-								aria-label={playing ? "一時停止" : "再生"}
 								className={CTRL}
 								onClick={playing ? pause : play}
 							>
-								{playing ? "⏸" : "▶"}
+								{playing ? "一時停止" : "再生"}
 							</button>
 							<button
 								type="button"
-								aria-label="進む"
 								className={CTRL}
 								onClick={stepForward}
 								disabled={!canForward}
 							>
-								⏭
+								進む
 							</button>
 							<select
 								aria-label="速度"
@@ -184,7 +176,7 @@ export default function App() {
 								{cursor + 1} / {frameCount}
 							</span>
 						</div>
-						<div className="overflow-x-auto">
+						<div className="overflow-hidden px-3 pb-3">
 							<ConfigView frame={frame} />
 						</div>
 					</div>

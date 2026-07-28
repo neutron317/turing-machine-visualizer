@@ -231,11 +231,10 @@ export function AutomatonDiagram({
 				/>
 				<button
 					type="button"
-					aria-label="リセット"
-					className="rounded px-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+					className="rounded px-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700"
 					onClick={reset}
 				>
-					⟲
+					リセット
 				</button>
 			</div>
 			<svg
