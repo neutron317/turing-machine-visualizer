@@ -1,9 +1,13 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { machines } from "../fixtures/machines.ts";
 import { AutomatonDiagram } from "./AutomatonDiagram.tsx";
 
 const dfaSpec = machines[0].spec; // even-a
+
+function vbWidth(svg: Element | null): number {
+	return Number(svg?.getAttribute("viewBox")?.split(" ")[2]);
+}
 
 describe("AutomatonDiagram", () => {
 	it("全状態を描き、現在状態をハイライトする", () => {
@@ -34,5 +38,18 @@ describe("AutomatonDiagram", () => {
 		expect(container.textContent).toContain("␣/␣,R");
 		const active = container.querySelector('[data-active="true"]');
 		expect(active?.getAttribute("data-state")).toBe("P1");
+	});
+
+	it("拡大ボタンで viewBox が狭まり、リセットで戻る", () => {
+		const { container, getByRole } = render(
+			<AutomatonDiagram spec={dfaSpec} current="Even" />,
+		);
+		const svg = container.querySelector("svg");
+		const initial = svg?.getAttribute("viewBox");
+		const w0 = vbWidth(svg);
+		fireEvent.click(getByRole("button", { name: "拡大" }));
+		expect(vbWidth(svg)).toBeLessThan(w0); // 拡大で viewBox 幅が縮む
+		fireEvent.click(getByRole("button", { name: "リセット" }));
+		expect(svg?.getAttribute("viewBox")).toBe(initial);
 	});
 });
