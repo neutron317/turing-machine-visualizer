@@ -55,6 +55,23 @@ describe("AutomatonDiagram", () => {
 		).toContain("arrow-active");
 	});
 
+	it("キャンバスは機械に依らず一定サイズ(DFA/DTM でノード表示を統一)", () => {
+		const dtmSpec = machines[1].spec; // anbncn(状態数・ラベル長が DFA と異なる)
+		const { container: dfa } = render(
+			<AutomatonDiagram spec={dfaSpec} current="Even" />,
+		);
+		const { container: dtm } = render(
+			<AutomatonDiagram spec={dtmSpec} current="P0" />,
+		);
+		// 初期 viewBox が両者一致 = ノードの表示 px が揃う(状態数に依らない)。
+		expect(dfa.querySelector("svg")?.getAttribute("viewBox")).toBe(
+			"0 0 640 640",
+		);
+		expect(dtm.querySelector("svg")?.getAttribute("viewBox")).toBe(
+			"0 0 640 640",
+		);
+	});
+
 	it("ズームスライダーで viewBox が狭まり、リセットで戻る", () => {
 		const { container, getByRole } = render(
 			<AutomatonDiagram spec={dfaSpec} current="Even" />,

@@ -58,6 +58,9 @@ function toGraph(spec: DFASpec | DTMSpec): {
 }
 
 const R_NODE = 22;
+// キャンバス(viewBox)の一辺。機械が変わってもこの値を一定に保つことで、
+// ノードの表示サイズが DFA/DTM で揃う(状態数やラベル長に依らない)。
+const DIAGRAM_SIZE = 640;
 
 // A→B の曲線(両端はノード境界)。矢印は marker-end で終端に付く。
 function curve(a: Point, b: Point): { d: string; lx: number; ly: number } {
@@ -115,7 +118,6 @@ export function AutomatonDiagram({
 	spec,
 	current,
 	fired,
-	bottomInset = 0,
 	rightInset = 0,
 	historyOpen = false,
 	onToggleHistory,
@@ -123,7 +125,6 @@ export function AutomatonDiagram({
 	spec: DFASpec | DTMSpec;
 	current: string;
 	fired?: { from: string; to: string } | null;
-	bottomInset?: number;
 	rightInset?: number;
 	historyOpen?: boolean;
 	onToggleHistory?: () => void;
@@ -131,13 +132,15 @@ export function AutomatonDiagram({
 	const { states, accept, start, edges } = toGraph(spec);
 	const firedKey = fired ? JSON.stringify([fired.from, fired.to]) : null;
 	const n = states.length;
-	const R = 46 + 20 * n;
 	// ラベル幅(11px monospace ≈ 6.6px/字)を余白に織り込み、側方ノードのまとめ
-	// ラベル(自己ループ含む)が viewBox の外へはみ出して切れないようにする。
+	// ラベル(自己ループ含む)がキャンバス外へはみ出して切れないようにする。
 	const maxLabelLen = edges.reduce((m, e) => Math.max(m, e.label.length), 0);
 	const margin = 60 + (maxLabelLen * 6.6) / 2;
-	const size = 2 * (R + R_NODE + margin);
+	// キャンバスは常に一定サイズ。状態を並べる円の半径 R をここから逆算し、
+	// ラベル余白を確保しつつ収める(こうするとノードの表示 px が機械間で揃う)。
+	const size = DIAGRAM_SIZE;
 	const c = size / 2;
+	const R = Math.max(40, c - R_NODE - margin);
 
 	const pos = new Map<string, Point>();
 	states.forEach((st, i) => {
@@ -179,12 +182,6 @@ export function AutomatonDiagram({
 	const reset = () => setVb({ x: 0, y: 0, w: size, h: size });
 	const scale = size / vb.w;
 
-	// spec 編集などで size(状態数・ラベル幅)が変わったら viewBox を再フィットし、
-	// 追加された状態が見切れないようにする(同一機械では再マウントされないため)。
-	useEffect(() => {
-		setVb({ x: 0, y: 0, w: size, h: size });
-	}, [size]);
-
 	// ホイールでカーソル位置基準にズーム(ページスクロールを止めるため非 passive)。
 	useEffect(() => {
 		const svg = svgRef.current;
@@ -213,7 +210,8 @@ export function AutomatonDiagram({
 		};
 		svg.addEventListener("wheel", onWheel, { passive: false });
 		return () => svg.removeEventListener("wheel", onWheel);
-	}, [size]);
+		// size は定数(DIAGRAM_SIZE)なのでリスナは一度だけ張れば十分。
+	}, []);
 
 	const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
 		dragRef.current = { x: e.clientX, y: e.clientY };
@@ -238,9 +236,10 @@ export function AutomatonDiagram({
 
 	return (
 		<div className="relative h-full w-full">
+			{/* 操作クラスタ(縦ズーム + 履歴トグル)。テープの上を避けて右上に置く。 */}
 			<div
 				className="absolute z-30 flex flex-col items-center gap-2 rounded border border-gray-300 bg-white/85 p-2 text-sm dark:border-gray-600 dark:bg-gray-800/85"
-				style={{ bottom: bottomInset + 12, right: rightInset + 12 }}
+				style={{ top: 12, right: rightInset + 12 }}
 			>
 				{onToggleHistory && (
 					<button
