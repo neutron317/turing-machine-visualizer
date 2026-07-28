@@ -3,6 +3,9 @@ import {
 	dfaSpecSchema,
 	dfaTraceSchema,
 	dtmConfigSchema,
+	dtmSpecSchema,
+	dtmTraceSchema,
+	dtmTransSchema,
 	moveSchema,
 	statusSchema,
 	stepDfaSchema,
@@ -77,5 +80,85 @@ describe("契約スキーマ(docs/contract.md)", () => {
 			],
 		};
 		expect(dfaTraceSchema.safeParse(trace).success).toBe(true);
+	});
+
+	it("DTMTrans は read/write の null(blank)を許容する", () => {
+		expect(
+			dtmTransSchema.safeParse({
+				from: "P0",
+				read: null,
+				to: "PA",
+				write: null,
+				move: "R",
+			}).success,
+		).toBe(true);
+	});
+
+	it("DTMSpec を検証する(read=null/write=null の遷移を含む)", () => {
+		const spec = {
+			states: ["P0", "PA"],
+			tapeAlphabet: ["a", "X"],
+			start: "P0",
+			accept: ["PA"],
+			transitions: [
+				{ from: "P0", read: "a", to: "P0", write: "X", move: "R" },
+				{ from: "P0", read: null, to: "PA", write: null, move: "R" },
+			],
+		};
+		expect(dtmSpecSchema.safeParse(spec).success).toBe(true);
+	});
+
+	it("DTMTrace を検証する(head=null・セル内 null・終端 fired=null accept)", () => {
+		const trace = {
+			kind: "dtm",
+			machine: "anbncn",
+			input: "abc",
+			initial: { state: "P0", left: [], head: "a", right: ["b", "c"] },
+			steps: [
+				{
+					status: "running",
+					config: { state: "P1", left: ["X"], head: "b", right: ["c"] },
+					fired: { from: "P0", read: "a", to: "P1", write: "X", move: "R" },
+				},
+				{
+					status: "running",
+					config: {
+						state: "PA",
+						left: ["X", "Y", "Z", null],
+						head: null,
+						right: [],
+					},
+					fired: { from: "P4", read: null, to: "PA", write: null, move: "R" },
+				},
+				{
+					status: "accept",
+					config: {
+						state: "PA",
+						left: ["X", "Y", "Z", null],
+						head: null,
+						right: [],
+					},
+					fired: null,
+				},
+			],
+		};
+		expect(dtmTraceSchema.safeParse(trace).success).toBe(true);
+	});
+
+	it("Trace の note は欠落・null・文字列のいずれも任意扱い(Haskell .:? に一致)", () => {
+		const base = {
+			kind: "dfa",
+			machine: "even-a",
+			input: "",
+			initial: { state: "Even", rest: [] },
+			steps: [],
+		};
+		expect(dfaTraceSchema.safeParse(base).success).toBe(true); // 欠落
+		expect(dfaTraceSchema.safeParse({ ...base, note: null }).success).toBe(
+			true,
+		); // null
+		expect(dfaTraceSchema.safeParse({ ...base, note: "メモ" }).success).toBe(
+			true,
+		); // 文字列
 	});
 });

@@ -86,7 +86,7 @@ export const dfaTraceSchema = z.object({
 	kind: z.literal("dfa"),
 	machine: z.string(),
 	input: z.string(),
-	note: z.string().optional(),
+	note: z.string().nullish(), // 欠落・null の両方を任意扱い(Haskell .:? に一致)
 	initial: dfaConfigSchema,
 	steps: z.array(stepDfaSchema),
 });
@@ -95,7 +95,7 @@ export const dtmTraceSchema = z.object({
 	kind: z.literal("dtm"),
 	machine: z.string(),
 	input: z.string(),
-	note: z.string().optional(),
+	note: z.string().nullish(), // 欠落・null の両方を任意扱い(Haskell .:? に一致)
 	initial: dtmConfigSchema,
 	steps: z.array(stepDtmSchema),
 });
