@@ -16,6 +16,8 @@ import {
 } from "./store/replay.ts";
 
 const SPEEDS = [1, 2, 4, 8];
+// 遷移履歴ドロワーの幅(px)。状態図の操作クラスタはこの分だけ左へ寄せる。
+const HISTORY_W = 288;
 const PANEL =
 	"rounded-lg border border-gray-200 bg-white/90 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-800/90";
 const CTRL =
@@ -33,13 +35,11 @@ export default function App() {
 	const canForward = useReplayStore(selectCanStepForward);
 	const canBack = useReplayStore(selectCanStepBack);
 	const frames = useReplayStore((s) => s.frames);
-	const { load, stepForward, stepBack, reset, play, pause, setSpeed } =
+	const { load, stepForward, stepBack, goto, reset, play, pause, setSpeed } =
 		useReplayStore.getState();
 
 	// 操作板の位置(ドラッグで移動可)。
 	const [panelPos, setPanelPos] = useState({ x: 12, y: 12 });
-	const [historyOpen, setHistoryOpen] = useState(false);
-	const histRef = useRef<HTMLDivElement>(null);
 	const panelDrag = useRef<{ dx: number; dy: number } | null>(null);
 	const onPanelDown = (e: ReactPointerEvent<HTMLDivElement>) => {
 		panelDrag.current = {
@@ -53,7 +53,7 @@ export default function App() {
 			return;
 		}
 		// 画面外へ落として掴み直せなくならないよう、ビューポート内にクランプする。
-		const w = 240; // パネル幅(w-60)
+		const w = 240;
 		setPanelPos({
 			x: Math.min(
 				Math.max(0, e.clientX - panelDrag.current.dx),
@@ -68,6 +68,24 @@ export default function App() {
 	const onPanelUp = () => {
 		panelDrag.current = null;
 	};
+
+	const [historyOpen, setHistoryOpen] = useState(false);
+
+	// 下部帯(再生 + テープ)の高さを測る。状態図の操作クラスタをその上に置き、
+	// 右ドロワー(履歴)の下端もこの高さで止めてテープの描画を優先する。
+	const bottomRef = useRef<HTMLDivElement>(null);
+	const [bottomInset, setBottomInset] = useState(0);
+	const hasFrame = frame != null;
+	useEffect(() => {
+		const el = bottomRef.current;
+		if (!hasFrame || !el || typeof ResizeObserver === "undefined") {
+			return;
+		}
+		const ro = new ResizeObserver(() => setBottomInset(el.offsetHeight));
+		ro.observe(el);
+		setBottomInset(el.offsetHeight);
+		return () => ro.disconnect();
+	}, [hasFrame]);
 
 	// 初回に既定の機械を読み込む。
 	useEffect(() => {
@@ -87,14 +105,6 @@ export default function App() {
 		return () => clearInterval(id);
 	}, [playing, speed]);
 
-	// 履歴を開いている間、現在位置(末尾)へ自動スクロール。cursor 変化で再実行したい。
-	// biome-ignore lint/correctness/useExhaustiveDependencies: cursor を依存に含めて末尾へ追従させる
-	useEffect(() => {
-		if (historyOpen && histRef.current) {
-			histRef.current.scrollTop = histRef.current.scrollHeight;
-		}
-	}, [historyOpen, cursor]);
-
 	const selectMachine = (m: Machine) => {
 		setSelectedId(m.id);
 		load(m.trace);
@@ -104,7 +114,8 @@ export default function App() {
 
 	return (
 		<main className="relative h-screen w-screen overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-			{/* 状態図(全面) */}
+			{/* 状態図(全面)。操作クラスタ(縦ズーム + 履歴トグル)は右下・帯の上。
+			    履歴を出すとドロワー幅ぶん左へ寄る(rightInset)。 */}
 			<div className="absolute inset-0">
 				{frame && (
 					<AutomatonDiagram
@@ -112,11 +123,15 @@ export default function App() {
 						spec={machine.spec}
 						current={currentState}
 						fired={frame.fired}
+						bottomInset={bottomInset}
+						rightInset={historyOpen ? HISTORY_W : 0}
+						historyOpen={historyOpen}
+						onToggleHistory={() => setHistoryOpen((o) => !o)}
 					/>
 				)}
 			</div>
 
-			{/* 操作板(ドラッグで移動可) */}
+			{/* 操作板(機械選択・ドラッグで移動可) */}
 			<div
 				className={`absolute z-20 w-60 ${PANEL}`}
 				style={{ left: panelPos.x, top: panelPos.y }}
@@ -146,21 +161,16 @@ export default function App() {
 							{m.label}
 						</button>
 					))}
-					<button
-						type="button"
-						aria-pressed={historyOpen}
-						className="mt-2 rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
-						onClick={() => setHistoryOpen((o) => !o)}
-					>
-						{historyOpen ? "遷移履歴を隠す" : "遷移履歴を表示"}
-					</button>
 				</div>
 			</div>
 
-			{/* 下部: 再生コントロール + テープ(全幅) */}
+			{/* 下部: 再生コントロール + テープ + (履歴) */}
 			{frame && (
-				<div className="absolute inset-x-0 bottom-0 z-20 border-gray-200 border-t bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90">
-					<div className="flex flex-col gap-2">
+				<div
+					ref={bottomRef}
+					className="absolute inset-x-0 bottom-0 z-20 border-gray-200 border-t bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90"
+				>
+					<div className="flex flex-col">
 						<div className="flex flex-wrap items-center gap-2 px-3 pt-3">
 							<button type="button" className={CTRL} onClick={reset}>
 								最初へ
@@ -211,27 +221,25 @@ export default function App() {
 				</div>
 			)}
 
-			{/* 遷移履歴ドロワー(出し入れ・⊢ 記法) */}
-			<div
-				className={`absolute top-0 right-0 z-30 flex h-full w-80 max-w-[85vw] transform flex-col border-gray-200 border-l bg-white/95 backdrop-blur transition-transform dark:border-gray-700 dark:bg-gray-800/95 ${
-					historyOpen ? "translate-x-0" : "translate-x-full"
-				}`}
-				inert={!historyOpen}
-			>
-				<div className="flex items-center justify-between border-gray-200 border-b px-3 py-2 dark:border-gray-700">
-					<h2 className="font-bold text-sm">遷移履歴(⊢)</h2>
-					<button
-						type="button"
-						className="rounded px-2 py-0.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-						onClick={() => setHistoryOpen(false)}
+			{/* 遷移履歴(右ドロワー)。下端はテープ帯の上で止め(bottomInset)、z を
+			    下部帯より下(z-10)にしてテープの描画を優先する。 */}
+			{frame && historyOpen && (
+				<section
+					className="absolute top-0 right-0 z-10 flex flex-col border-gray-200 border-l bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90"
+					style={{ width: HISTORY_W, bottom: bottomInset }}
+					aria-labelledby="history-heading"
+				>
+					<h2
+						id="history-heading"
+						className="border-gray-200 border-b px-3 py-2 font-medium text-gray-600 text-xs dark:border-gray-700 dark:text-gray-300"
 					>
-						閉じる
-					</button>
-				</div>
-				<div ref={histRef} className="flex-1 overflow-y-auto p-3">
-					<TraceHistory frames={frames} cursor={cursor} />
-				</div>
-			</div>
+						遷移履歴(⊢。行をクリックでその状態へ)
+					</h2>
+					<div className="flex-1 overflow-y-auto px-3 py-2">
+						<TraceHistory frames={frames} current={cursor} onSelect={goto} />
+					</div>
+				</section>
+			)}
 		</main>
 	);
 }

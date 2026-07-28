@@ -29,6 +29,7 @@ export interface ReplayState {
 	load: (trace: DFATrace | DTMTrace) => void;
 	stepForward: () => void;
 	stepBack: () => void;
+	goto: (index: number) => void;
 	reset: () => void;
 	play: () => void;
 	pause: () => void;
@@ -83,6 +84,15 @@ export const useReplayStore = create<ReplayState>()((set, get) => ({
 		if (cursor > 0) {
 			set({ cursor: cursor - 1 });
 		}
+	},
+	// 任意のコマへジャンプ(履歴からの選択用)。範囲外はクランプ。自動再生は止める。
+	goto: (index) => {
+		const { frames } = get();
+		if (frames.length === 0) {
+			return;
+		}
+		const i = Math.min(Math.max(0, index), frames.length - 1);
+		set({ cursor: i, playing: false });
 	},
 	reset: () => set({ cursor: 0, playing: false }),
 	play: () => {
