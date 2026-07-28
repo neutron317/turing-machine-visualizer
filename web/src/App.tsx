@@ -7,6 +7,7 @@ import {
 import { AutomatonDiagram } from "./components/AutomatonDiagram.tsx";
 import { ConfigView } from "./components/ConfigView.tsx";
 import { TraceHistory } from "./components/TraceHistory.tsx";
+import { initialDfaConfig, initialDtmConfig } from "./contract/initial.ts";
 import { type Machine, machines } from "./fixtures/machines.ts";
 import {
 	selectCanStepBack,
@@ -23,6 +24,13 @@ const PANEL =
 const CTRL =
 	"rounded border border-gray-300 px-2 py-1 text-sm disabled:opacity-40 dark:border-gray-600 dark:hover:bg-gray-700";
 
+// 機械の初期コンフィグ(契約 §3)。モジュール定数なので参照が安定する。
+function machineInitial(m: Machine) {
+	return m.kind === "dfa"
+		? initialDfaConfig(m.spec, m.input)
+		: initialDtmConfig(m.spec, m.input);
+}
+
 export default function App() {
 	const [selectedId, setSelectedId] = useState(machines[0].id);
 	const machine = machines.find((m) => m.id === selectedId) ?? machines[0];
@@ -35,8 +43,22 @@ export default function App() {
 	const canForward = useReplayStore(selectCanStepForward);
 	const canBack = useReplayStore(selectCanStepBack);
 	const frames = useReplayStore((s) => s.frames);
-	const { load, stepForward, stepBack, goto, reset, play, pause, setSpeed } =
-		useReplayStore.getState();
+	const error = useReplayStore((s) => s.error);
+	const {
+		startRun,
+		stepForward,
+		stepBack,
+		goto,
+		reset,
+		play,
+		pause,
+		setSpeed,
+	} = useReplayStore.getState();
+
+	// 機械(spec + 入力)から実行を開始する。
+	const startMachine = (m: Machine) => {
+		startRun(m.kind, m.spec, machineInitial(m));
+	};
 
 	// 操作板の位置(ドラッグで移動可)。
 	const [panelPos, setPanelPos] = useState({ x: 12, y: 12 });
@@ -87,27 +109,40 @@ export default function App() {
 		return () => ro.disconnect();
 	}, [hasFrame]);
 
-	// 初回に既定の機械を読み込む。
+	// 初回に既定の機械で実行を開始する(machines[0] と startRun は安定参照)。
 	useEffect(() => {
 		if (useReplayStore.getState().frames.length === 0) {
-			load(machines[0].trace);
+			startRun(machines[0].kind, machines[0].spec, machineInitial(machines[0]));
 		}
-	}, [load]);
+	}, [startRun]);
 
-	// 自動再生。
+	// 自動再生。各ステップ(ネットワーク取得を含む)の完了を待ってから次を予約する
+	// ことで、遅い応答でもリクエストが積み重ならないようにする。
 	useEffect(() => {
 		if (!playing) {
 			return;
 		}
-		const id = setInterval(() => {
-			useReplayStore.getState().stepForward();
-		}, 1000 / speed);
-		return () => clearInterval(id);
+		let cancelled = false;
+		let timer: ReturnType<typeof setTimeout>;
+		const tick = async () => {
+			await useReplayStore.getState().stepForward();
+			if (cancelled) {
+				return;
+			}
+			if (useReplayStore.getState().playing) {
+				timer = setTimeout(tick, 1000 / speed);
+			}
+		};
+		timer = setTimeout(tick, 1000 / speed);
+		return () => {
+			cancelled = true;
+			clearTimeout(timer);
+		};
 	}, [playing, speed]);
 
 	const selectMachine = (m: Machine) => {
 		setSelectedId(m.id);
-		load(m.trace);
+		startMachine(m);
 	};
 
 	const currentState = frame?.config.state ?? machine.spec.start;
@@ -171,6 +206,11 @@ export default function App() {
 					className="absolute inset-x-0 bottom-0 z-20 border-gray-200 border-t bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90"
 				>
 					<div className="flex flex-col">
+						{error && (
+							<div className="border-red-300 border-b bg-red-50 px-3 py-1.5 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/50 dark:text-red-300">
+								{error}
+							</div>
+						)}
 						<div className="flex flex-wrap items-center gap-2 px-3 pt-3">
 							<button type="button" className={CTRL} onClick={reset}>
 								最初へ
