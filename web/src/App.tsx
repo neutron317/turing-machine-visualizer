@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { AutomatonDiagram } from "./components/AutomatonDiagram.tsx";
 import { ConfigView } from "./components/ConfigView.tsx";
-import { anbncnTrace, evenATrace } from "./fixtures/traces.ts";
+import { type Machine, machines } from "./fixtures/machines.ts";
 import {
 	selectCanStepBack,
 	selectCanStepForward,
@@ -11,6 +12,9 @@ import {
 const SPEEDS = [1, 2, 4, 8];
 
 export default function App() {
+	const [selectedId, setSelectedId] = useState(machines[0].id);
+	const machine = machines.find((m) => m.id === selectedId) ?? machines[0];
+
 	const frame = useReplayStore(selectCurrentFrame);
 	const cursor = useReplayStore((s) => s.cursor);
 	const frameCount = useReplayStore((s) => s.frames.length);
@@ -21,15 +25,14 @@ export default function App() {
 	const { load, stepForward, stepBack, reset, play, pause, setSpeed } =
 		useReplayStore.getState();
 
-	// 初回に既定のトレースを読み込む。
+	// 初回に既定の機械を読み込む。
 	useEffect(() => {
 		if (useReplayStore.getState().frames.length === 0) {
-			load(evenATrace);
+			load(machines[0].trace);
 		}
 	}, [load]);
 
-	// 自動再生: playing の間だけ speed に応じて前進する。終端で stepForward が
-	// playing を false にするとクリーンアップで停止する。
+	// 自動再生: playing の間だけ speed に応じて前進する。
 	useEffect(() => {
 		if (!playing) {
 			return;
@@ -40,6 +43,13 @@ export default function App() {
 		return () => clearInterval(id);
 	}, [playing, speed]);
 
+	const selectMachine = (m: Machine) => {
+		setSelectedId(m.id);
+		load(m.trace);
+	};
+
+	const currentState = frame?.config.state ?? machine.spec.start;
+
 	return (
 		<main className="min-h-screen bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100">
 			<div className="mx-auto max-w-2xl p-8">
@@ -49,20 +59,21 @@ export default function App() {
 				</p>
 
 				<div className="mt-4 flex flex-wrap gap-2">
-					<button
-						type="button"
-						className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-800"
-						onClick={() => load(evenATrace)}
-					>
-						DFA: 偶数個の a
-					</button>
-					<button
-						type="button"
-						className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-800"
-						onClick={() => load(anbncnTrace)}
-					>
-						DTM: aⁿbⁿcⁿ
-					</button>
+					{machines.map((m) => (
+						<button
+							key={m.id}
+							type="button"
+							aria-pressed={m.id === selectedId}
+							className={
+								m.id === selectedId
+									? "rounded border border-blue-500 bg-blue-500 px-3 py-1 text-white"
+									: "rounded border border-gray-300 px-3 py-1 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-800"
+							}
+							onClick={() => selectMachine(m)}
+						>
+							{m.label}
+						</button>
+					))}
 				</div>
 
 				{frame ? (
@@ -115,6 +126,10 @@ export default function App() {
 							<span className="ml-auto text-sm text-gray-500">
 								{cursor + 1} / {frameCount}
 							</span>
+						</div>
+
+						<div className="mt-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+							<AutomatonDiagram spec={machine.spec} current={currentState} />
 						</div>
 
 						<ConfigView frame={frame} />
