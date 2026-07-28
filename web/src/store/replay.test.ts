@@ -104,6 +104,19 @@ describe("replay ストア", () => {
 		expect(useReplayStore.getState().speed).toBe(5);
 	});
 
+	it("最終コマへ進入した時点で playing を止める(1ティック遅延を避ける)", () => {
+		const st = useReplayStore.getState();
+		st.load(trace);
+		st.play();
+		st.stepForward(); // 0 -> 1
+		st.stepForward(); // 1 -> 2(まだ中間)
+		expect(useReplayStore.getState().playing).toBe(true);
+		st.stepForward(); // 2 -> 3(最終)→ 同時に停止
+		const s = useReplayStore.getState();
+		expect(s.cursor).toBe(3);
+		expect(s.playing).toBe(false);
+	});
+
 	it("終端から play() すると先頭に戻して再生する", () => {
 		const st = useReplayStore.getState();
 		st.load(trace);

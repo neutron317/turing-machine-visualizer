@@ -67,9 +67,15 @@ export const useReplayStore = create<ReplayState>()((set, get) => ({
 	stepForward: () => {
 		const { cursor, frames } = get();
 		if (cursor < frames.length - 1) {
-			set({ cursor: cursor + 1 });
+			const next = cursor + 1;
+			// 最終コマへ進入したら同時に自動再生を止める(次ティックまで待たない)。
+			if (next >= frames.length - 1) {
+				set({ cursor: next, playing: false });
+			} else {
+				set({ cursor: next });
+			}
 		} else {
-			set({ playing: false }); // 終端では前進せず、自動再生を止める
+			set({ playing: false }); // 既に終端なら前進せず自動再生を止める
 		}
 	},
 	stepBack: () => {
