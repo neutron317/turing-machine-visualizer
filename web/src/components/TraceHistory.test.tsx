@@ -35,4 +35,24 @@ describe("TraceHistory", () => {
 		);
 		expect(queryAllByText("Odd").length).toBe(0);
 	});
+
+	it("初期行には ⊢ が付かない(⊢ は行数-1)", () => {
+		const { container } = render(<TraceHistory frames={frames} cursor={1} />);
+		expect((container.textContent?.match(/⊢/g) ?? []).length).toBe(1);
+	});
+
+	it("DTM は left…状態 head …right の順で描き、head を赤・null を ␣ にする", () => {
+		const dtm: Frame[] = [
+			{
+				config: { state: "P1", left: ["X", null], head: "b", right: [null] },
+				status: "running",
+				fired: null,
+			},
+		];
+		const { container } = render(<TraceHistory frames={dtm} cursor={0} />);
+		// 左→状態→head→右 の順(null は ␣)。
+		expect(container.querySelector(".font-mono")?.textContent).toBe("X␣P1b␣");
+		// 参照セル(head)だけ赤。
+		expect(container.querySelector(".text-red-600")?.textContent).toBe("b");
+	});
 });

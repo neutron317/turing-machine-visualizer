@@ -216,6 +216,7 @@ export default function App() {
 				className={`absolute top-0 right-0 z-30 flex h-full w-80 max-w-[85vw] transform flex-col border-gray-200 border-l bg-white/95 backdrop-blur transition-transform dark:border-gray-700 dark:bg-gray-800/95 ${
 					historyOpen ? "translate-x-0" : "translate-x-full"
 				}`}
+				inert={!historyOpen}
 			>
 				<div className="flex items-center justify-between border-gray-200 border-b px-3 py-2 dark:border-gray-700">
 					<h2 className="font-bold text-sm">遷移履歴(⊢)</h2>
