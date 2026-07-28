@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	type DFASpec,
 	type DTMSpec,
@@ -36,12 +36,17 @@ function rowsFromMachine(machine: Machine): Row[] {
 	}));
 }
 
-// カンマ区切りの入力を記号/状態のリストへ(空白除去・空要素は捨てる)。
+// カンマ区切りの入力を状態のリストへ(空白除去・空要素は捨てる)。
 function parseCsv(s: string): string[] {
 	return s
 		.split(",")
 		.map((x) => x.trim())
 		.filter((x) => x !== "");
+}
+
+// 未完成の行(from/to が空)を除いた遷移だけを対象にする。
+function completeRows(rows: Row[]): Row[] {
+	return rows.filter((r) => r.from !== "" && r.to !== "");
 }
 
 // 状態集合を導出する: 遷移が参照する from/to に加え、start・accept も含める
@@ -65,30 +70,112 @@ function derivedStates(rows: Row[], start: string, accept: string[]): string[] {
 	return [...set];
 }
 
-// 機械の定義(遷移・初期状態・受理状態・使える記号)を編集して spec を組み立てる
-// エディタ。states は from/to・start・accept から自動導出する。新規機械では空から
-// 定義でき、既存機械では現在の定義を初期値として読み込む。
+// 使える記号(アルファベット/テープ記号)を遷移関数から自動導出する。
+// DFA は read、DTM は read と write の非空(空白 null は除く)を集める。
+function derivedSymbols(rows: Row[], isDfa: boolean): string[] {
+	const set = new Set<string>();
+	for (const r of completeRows(rows)) {
+		if (r.read !== "") {
+			set.add(r.read);
+		}
+		if (!isDfa && r.write !== "") {
+			set.add(r.write);
+		}
+	}
+	return [...set];
+}
+
+// 機械の定義(遷移・初期状態・受理状態)を編集するエディタ。変更のたびに妥当な
+// spec を組み立てて onSpecChange へライブで通知する(実行ボタンは無い)。states と
+// 使える記号(アルファベット/テープ記号)は遷移関数から自動導出し、読み取り専用で
+// 一覧表示する。未完成の行(from/to が空)は無視し、決定性違反や空の初期状態は
+// エラー表示にして通知しない。
 export function SpecEditor({
 	machine,
-	onRun,
+	onSpecChange,
 }: {
 	machine: Machine;
-	onRun: (spec: Spec) => void;
+	onSpecChange: (spec: Spec) => void;
 }) {
 	const isDfa = machine.kind === "dfa";
 	const [rows, setRows] = useState<Row[]>(() => rowsFromMachine(machine));
 	const [start, setStart] = useState(machine.spec.start);
 	const [accept, setAccept] = useState(machine.spec.accept.join(", "));
-	const [symbols, setSymbols] = useState(() =>
-		(machine.kind === "dfa"
-			? machine.spec.alphabet
-			: machine.spec.tapeAlphabet
-		).join(", "),
-	);
 	const [error, setError] = useState<string | null>(null);
 
 	const acceptList = parseCsv(accept);
 	const states = derivedStates(rows, start, acceptList);
+	const symbols = derivedSymbols(rows, isDfa);
+
+	// onSpecChange の識別子が変わってもライブ通知の effect を再実行させないよう ref 経由で呼ぶ。
+	const onSpecChangeRef = useRef(onSpecChange);
+	onSpecChangeRef.current = onSpecChange;
+
+	// 編集値が変わるたびに spec を組み立てて通知する(初回マウントは除く。初期状態は
+	// 呼び出し側が machine.spec から持っているため二重に流さない)。
+	const didMount = useRef(false);
+	useEffect(() => {
+		if (!didMount.current) {
+			didMount.current = true;
+			return;
+		}
+		if (start === "") {
+			setError("初期状態は必須です。");
+			return;
+		}
+		const complete = completeRows(rows);
+		const keys = new Set<string>();
+		for (const r of complete) {
+			const key = JSON.stringify([r.from, r.read]);
+			if (keys.has(key)) {
+				setError("同じ from と 読み記号 の組が重複しています(決定性)。");
+				return;
+			}
+			keys.add(key);
+		}
+		const accepts = parseCsv(accept);
+		const sts = derivedStates(complete, start, accepts);
+		const syms = derivedSymbols(complete, isDfa);
+		if (isDfa) {
+			const parsed = dfaSpecSchema.safeParse({
+				states: sts,
+				alphabet: syms,
+				start,
+				accept: accepts,
+				transitions: complete.map((r) => ({
+					from: r.from,
+					read: r.read,
+					to: r.to,
+				})),
+			});
+			if (!parsed.success) {
+				setError("読み記号は 1 文字にしてください。");
+				return;
+			}
+			setError(null);
+			onSpecChangeRef.current(parsed.data as DFASpec);
+			return;
+		}
+		const parsed = dtmSpecSchema.safeParse({
+			states: sts,
+			tapeAlphabet: syms,
+			start,
+			accept: accepts,
+			transitions: complete.map((r) => ({
+				from: r.from,
+				read: r.read === "" ? null : r.read,
+				to: r.to,
+				write: r.write === "" ? null : r.write,
+				move: r.move,
+			})),
+		});
+		if (!parsed.success) {
+			setError("読み/書き記号は 1 文字にしてください。");
+			return;
+		}
+		setError(null);
+		onSpecChangeRef.current(parsed.data as DTMSpec);
+	}, [rows, start, accept, isDfa]);
 
 	const update = (i: number, patch: Partial<Row>) => {
 		setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -103,77 +190,12 @@ export function SpecEditor({
 		setRows((rs) => rs.filter((_, j) => j !== i));
 	};
 
-	const run = () => {
-		if (rows.some((r) => r.from === "" || r.to === "")) {
-			setError("from と to は空にできません。");
-			return;
-		}
-		if (start === "") {
-			setError("初期状態(start)は必須です。");
-			return;
-		}
-		// 決定性: 同じ (from, 読み) の組は 1 つだけ(契約 §1)。
-		const keys = new Set<string>();
-		for (const r of rows) {
-			const key = JSON.stringify([r.from, r.read]);
-			if (keys.has(key)) {
-				setError("同じ from と 読み記号 の組が重複しています(決定性)。");
-				return;
-			}
-			keys.add(key);
-		}
-		const symbolList = parseCsv(symbols);
-		if (isDfa) {
-			const spec = {
-				states,
-				alphabet: symbolList,
-				start,
-				accept: acceptList,
-				transitions: rows.map((r) => ({
-					from: r.from,
-					read: r.read,
-					to: r.to,
-				})),
-			};
-			const parsed = dfaSpecSchema.safeParse(spec);
-			if (!parsed.success) {
-				setError("読み記号・使える記号は 1 文字にしてください(空欄不可)。");
-				return;
-			}
-			setError(null);
-			onRun(parsed.data as DFASpec);
-			return;
-		}
-		const spec = {
-			states,
-			tapeAlphabet: symbolList,
-			start,
-			accept: acceptList,
-			transitions: rows.map((r) => ({
-				from: r.from,
-				read: r.read === "" ? null : r.read,
-				to: r.to,
-				write: r.write === "" ? null : r.write,
-				move: r.move,
-			})),
-		};
-		const parsed = dtmSpecSchema.safeParse(spec);
-		if (!parsed.success) {
-			setError(
-				"読み/書き・テープ記号は 1 文字にしてください(空欄は空白セル)。",
-			);
-			return;
-		}
-		setError(null);
-		onRun(parsed.data as DTMSpec);
-	};
-
 	const cell =
 		"min-w-0 rounded border border-gray-300 px-1 py-0.5 font-mono text-sm dark:border-gray-600 dark:bg-gray-700";
 
 	return (
 		<div className="flex flex-col gap-1">
-			{/* 機械レベルの定義(初期状態・受理状態・使える記号)。states は自動導出。 */}
+			{/* 機械レベルの定義。states と 使える記号 は遷移関数から自動導出(読み取り専用)。 */}
 			<div className="flex flex-col gap-1 text-xs">
 				<label className="flex items-center gap-1">
 					<span className="w-16 shrink-0 text-gray-500">初期状態</span>
@@ -192,19 +214,12 @@ export function SpecEditor({
 						placeholder="カンマ区切り"
 					/>
 				</label>
-				<label className="flex items-center gap-1">
-					<span className="w-16 shrink-0 text-gray-500">
-						{isDfa ? "アルファベット" : "テープ記号"}
-					</span>
-					<input
-						className={`${cell} flex-1`}
-						value={symbols}
-						onChange={(e) => setSymbols(e.target.value)}
-						placeholder="カンマ区切り"
-					/>
-				</label>
 				<div className="text-gray-400">
 					状態一覧: {states.length > 0 ? states.join(", ") : "(なし)"}
+				</div>
+				<div className="text-gray-400">
+					{isDfa ? "アルファベット" : "テープ記号"}:{" "}
+					{symbols.length > 0 ? symbols.join(", ") : "(なし)"}
 				</div>
 			</div>
 			<div className="overflow-x-auto">
@@ -287,23 +302,18 @@ export function SpecEditor({
 					</tbody>
 				</table>
 			</div>
-			{error && <div className="text-red-600 text-xs">{error}</div>}
-			<div className="flex gap-1">
-				<button
-					type="button"
-					className="rounded border border-gray-300 px-2 py-0.5 text-xs dark:border-gray-600 dark:hover:bg-gray-700"
-					onClick={addRow}
-				>
-					行を追加
-				</button>
-				<button
-					type="button"
-					className="rounded border border-gray-300 px-2 py-0.5 text-xs dark:border-gray-600 dark:hover:bg-gray-700"
-					onClick={run}
-				>
-					この定義で実行
-				</button>
-			</div>
+			{error && (
+				<div role="alert" className="text-red-600 text-xs">
+					{error}
+				</div>
+			)}
+			<button
+				type="button"
+				className="self-start rounded border border-gray-300 px-2 py-0.5 text-xs dark:border-gray-600 dark:hover:bg-gray-700"
+				onClick={addRow}
+			>
+				行を追加
+			</button>
 		</div>
 	);
 }
