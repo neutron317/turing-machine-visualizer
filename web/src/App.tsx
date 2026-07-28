@@ -1,4 +1,5 @@
 import {
+	type ChangeEvent as ReactChangeEvent,
 	type PointerEvent as ReactPointerEvent,
 	useEffect,
 	useMemo,
@@ -7,6 +8,11 @@ import {
 } from "react";
 import { AutomatonDiagram } from "./components/AutomatonDiagram.tsx";
 import { ConfigView } from "./components/ConfigView.tsx";
+import {
+	decodeMachine,
+	downloadText,
+	encodeMachine,
+} from "./components/machineFile.ts";
 import { SpecEditor } from "./components/SpecEditor.tsx";
 import { SymbolPalette } from "./components/SymbolPalette.tsx";
 import {
@@ -164,6 +170,39 @@ export default function App() {
 							transitions: [],
 						},
 					};
+		setMachineList((list) => [...list, m]);
+		setSelectedId(m.id);
+		setInputText(m.input);
+		setDraft(draftFromMachine(m));
+	};
+
+	// --- ファイル保存/読込(できるだけ軽量な JSON) ---
+	const fileRef = useRef<HTMLInputElement>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
+	const saveMachine = () => {
+		const text = encodeMachine({
+			kind: machine.kind,
+			label: machine.label,
+			input: inputText,
+			spec: machine.spec,
+		});
+		downloadText(`${machine.label || "machine"}.json`, text);
+	};
+	const onLoadFile = async (e: ReactChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		e.target.value = ""; // 同じファイルを続けて選べるようにクリアする
+		if (!file) {
+			return;
+		}
+		const text = await file.text();
+		newIdRef.current += 1;
+		const res = decodeMachine(text, `loaded-${newIdRef.current}`);
+		if ("error" in res) {
+			setLoadError(res.error);
+			return;
+		}
+		setLoadError(null);
+		const m = res.machine;
 		setMachineList((list) => [...list, m]);
 		setSelectedId(m.id);
 		setInputText(m.input);
@@ -343,6 +382,35 @@ export default function App() {
 							新規DTM
 						</button>
 					</div>
+					<div className="flex gap-1">
+						<button
+							type="button"
+							className={`flex-1 ${CTRL}`}
+							onClick={saveMachine}
+						>
+							保存
+						</button>
+						<button
+							type="button"
+							className={`flex-1 ${CTRL}`}
+							onClick={() => fileRef.current?.click()}
+						>
+							読込
+						</button>
+						<input
+							ref={fileRef}
+							type="file"
+							accept="application/json,.json"
+							className="hidden"
+							aria-label="機械ファイルを読み込み"
+							onChange={onLoadFile}
+						/>
+					</div>
+					{loadError && (
+						<div role="alert" className="text-red-600 text-xs">
+							{loadError}
+						</div>
+					)}
 				</div>
 			</div>
 
