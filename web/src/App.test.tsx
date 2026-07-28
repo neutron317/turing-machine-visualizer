@@ -210,6 +210,90 @@ describe("App(再生 UI)", () => {
 		});
 	});
 
+	it("ファイルから機械を読み込んで追加・選択する", async () => {
+		render(<App />);
+		const encoded = JSON.stringify({
+			v: 1,
+			kind: "dfa",
+			label: "読込テスト",
+			input: "ab",
+			spec: {
+				states: ["S"],
+				alphabet: ["a"],
+				start: "S",
+				accept: ["S"],
+				transitions: [],
+			},
+		});
+		const file = new File([encoded], "m.json", { type: "application/json" });
+		fireEvent.change(screen.getByLabelText("機械ファイルを読み込み"), {
+			target: { files: [file] },
+		});
+		// 読み込んだ機械が一覧に現れ、選択され、入力欄が読み込んだ値になる。
+		expect(
+			await screen.findByRole("button", { name: "読込テスト" }),
+		).toBeInTheDocument();
+		expect((screen.getByLabelText(/入力/) as HTMLInputElement).value).toBe(
+			"ab",
+		);
+	});
+
+	it("壊れたファイルを読み込むと role=alert でエラー表示する", async () => {
+		render(<App />);
+		fireEvent.change(screen.getByLabelText("機械ファイルを読み込み"), {
+			target: { files: [new File(["{bad json"], "m.json")] },
+		});
+		expect(await screen.findByRole("alert")).toHaveTextContent(/JSON/);
+	});
+
+	it("同じファイルを続けて読み込める(input をクリアする)", async () => {
+		render(<App />);
+		const encoded = JSON.stringify({
+			v: 1,
+			kind: "dfa",
+			label: "再読込",
+			input: "",
+			spec: {
+				states: ["S"],
+				alphabet: [],
+				start: "S",
+				accept: ["S"],
+				transitions: [],
+			},
+		});
+		const input = screen.getByLabelText(
+			"機械ファイルを読み込み",
+		) as HTMLInputElement;
+		fireEvent.change(input, {
+			target: { files: [new File([encoded], "m.json")] },
+		});
+		await screen.findByRole("button", { name: "再読込" });
+		expect(input.value).toBe(""); // 再選択できるようクリアされる
+		fireEvent.change(input, {
+			target: { files: [new File([encoded], "m.json")] },
+		});
+		await waitFor(() =>
+			expect(screen.getAllByRole("button", { name: "再読込" })).toHaveLength(2),
+		);
+	});
+
+	it("保存ボタンでダウンロードを実行する", () => {
+		const origCreate = URL.createObjectURL;
+		const origRevoke = URL.revokeObjectURL;
+		URL.createObjectURL = vi.fn(() => "blob:x");
+		URL.revokeObjectURL = vi.fn();
+		const clickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, "click")
+			.mockImplementation(() => {});
+		render(<App />);
+		fireEvent.click(screen.getByRole("button", { name: "保存" }));
+		expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+		expect(clickSpy).toHaveBeenCalledTimes(1);
+		clickSpy.mockRestore();
+		URL.createObjectURL = origCreate;
+		URL.revokeObjectURL = origRevoke;
+	});
+
 	it("状態図が編集モード(ドラッグで遷移追加)である", () => {
 		render(<App />);
 		expect(screen.getByText(/ドラッグで遷移/)).toBeInTheDocument();

@@ -1,4 +1,5 @@
 import {
+	type ChangeEvent as ReactChangeEvent,
 	type PointerEvent as ReactPointerEvent,
 	useEffect,
 	useMemo,
@@ -7,6 +8,12 @@ import {
 } from "react";
 import { AutomatonDiagram } from "./components/AutomatonDiagram.tsx";
 import { ConfigView } from "./components/ConfigView.tsx";
+import {
+	decodeMachine,
+	downloadText,
+	encodeMachine,
+	machineFileName,
+} from "./components/machineFile.ts";
 import { SpecEditor } from "./components/SpecEditor.tsx";
 import { SymbolPalette } from "./components/SymbolPalette.tsx";
 import {
@@ -68,6 +75,8 @@ export default function App() {
 	const [draft, setDraft] = useState<Draft>(() => draftFromMachine(machine));
 	// 新規機械の連番。
 	const newIdRef = useRef(0);
+	// ファイル読込エラーの表示(role=alert)。
+	const [loadError, setLoadError] = useState<string | null>(null);
 
 	const frame = useReplayStore(selectCurrentFrame);
 	const cursor = useReplayStore((s) => s.cursor);
@@ -168,6 +177,41 @@ export default function App() {
 		setSelectedId(m.id);
 		setInputText(m.input);
 		setDraft(draftFromMachine(m));
+		setLoadError(null); // 新規作成したら読込エラー表示は消す
+	};
+
+	// --- ファイル保存/読込(できるだけ軽量な JSON) ---
+	const fileRef = useRef<HTMLInputElement>(null);
+	const saveMachine = () => {
+		const text = encodeMachine({
+			kind: machine.kind,
+			label: machine.label,
+			input: inputText,
+			spec: machine.spec,
+		});
+		downloadText(machineFileName(machine.label), text);
+	};
+	const onLoadFile = async (e: ReactChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		e.target.value = ""; // 同じファイルを続けて選べるようにクリアする
+		// 直前のエラーを一旦消す(同じエラーでも role=alert が再度読み上げられるように)。
+		setLoadError(null);
+		if (!file) {
+			return;
+		}
+		const text = await file.text();
+		newIdRef.current += 1;
+		const res = decodeMachine(text, `loaded-${newIdRef.current}`);
+		if ("error" in res) {
+			setLoadError(res.error);
+			return;
+		}
+		setLoadError(null);
+		const m = res.machine;
+		setMachineList((list) => [...list, m]);
+		setSelectedId(m.id);
+		setInputText(m.input);
+		setDraft(draftFromMachine(m));
 	};
 
 	// 操作板の位置(ドラッグで移動可)。既定は左固定エディタと右上の操作クラスタを
@@ -262,6 +306,7 @@ export default function App() {
 		setSelectedId(m.id);
 		setInputText(m.input);
 		setDraft(draftFromMachine(m));
+		setLoadError(null); // 別機械へ移ったら読込エラー表示は消す
 	};
 
 	const currentState = frame?.config.state ?? machine.spec.start;
@@ -343,6 +388,35 @@ export default function App() {
 							新規DTM
 						</button>
 					</div>
+					<div className="flex gap-1">
+						<button
+							type="button"
+							className={`flex-1 ${CTRL}`}
+							onClick={saveMachine}
+						>
+							保存
+						</button>
+						<button
+							type="button"
+							className={`flex-1 ${CTRL}`}
+							onClick={() => fileRef.current?.click()}
+						>
+							読込
+						</button>
+						<input
+							ref={fileRef}
+							type="file"
+							accept="application/json,.json"
+							className="hidden"
+							aria-label="機械ファイルを読み込み"
+							onChange={onLoadFile}
+						/>
+					</div>
+					{loadError && (
+						<div role="alert" className="text-red-600 text-xs">
+							{loadError}
+						</div>
+					)}
 				</div>
 			</div>
 
