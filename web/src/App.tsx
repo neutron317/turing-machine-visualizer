@@ -55,10 +55,15 @@ function machineInitial(m: Machine) {
 }
 
 export default function App() {
+	// 機械一覧(新規作成で増やせるので state で持つ。初期値はプリセット)。
+	const [machineList, setMachineList] = useState<Machine[]>(machines);
 	const [selectedId, setSelectedId] = useState(machines[0].id);
-	const machine = machines.find((m) => m.id === selectedId) ?? machines[0];
+	const machine =
+		machineList.find((m) => m.id === selectedId) ?? machineList[0];
 	// 実行する入力文字列(編集可)。機械を切り替えると既定入力に戻す。
 	const [inputText, setInputText] = useState(machines[0].input);
+	// 新規機械の連番。
+	const newIdRef = useRef(0);
 
 	const frame = useReplayStore(selectCurrentFrame);
 	const cursor = useReplayStore((s) => s.cursor);
@@ -100,7 +105,7 @@ export default function App() {
 		startRun(machine.kind, spec, initial);
 		runInputRef.current = inputText;
 	};
-	// 編集した入力文字列で現在の機械(プリセット spec)を実行する。
+	// 編集した入力文字列で現在の機械(現在の spec)を実行する。
 	const runInput = () => runSpec(machine.spec);
 	// 再生/一時停止。入力が変わっていれば、現在の定義で新しい入力から実行し直す。
 	const onPlayPause = () => {
@@ -112,6 +117,49 @@ export default function App() {
 			runSpec(runningSpec ?? machine.spec);
 		}
 		play();
+	};
+	// 遷移関数エディタで組んだ定義を現在の機械へ反映し(切替後も残る)実行する。
+	const applySpec = (spec: Spec) => {
+		setMachineList((list) =>
+			list.map((m) => (m.id === selectedId ? ({ ...m, spec } as Machine) : m)),
+		);
+		runSpec(spec);
+	};
+	// 空の新規機械を作成して選択・実行する(そこから定義を編集していく)。
+	const createMachine = (kind: "dfa" | "dtm") => {
+		newIdRef.current += 1;
+		const n = newIdRef.current;
+		const base = { id: `new-${kind}-${n}`, input: "" };
+		const m: Machine =
+			kind === "dfa"
+				? {
+						...base,
+						label: `新規DFA ${n}`,
+						kind: "dfa",
+						spec: {
+							states: ["q0"],
+							alphabet: [],
+							start: "q0",
+							accept: [],
+							transitions: [],
+						},
+					}
+				: {
+						...base,
+						label: `新規DTM ${n}`,
+						kind: "dtm",
+						spec: {
+							states: ["q0"],
+							tapeAlphabet: [],
+							start: "q0",
+							accept: [],
+							transitions: [],
+						},
+					};
+		setMachineList((list) => [...list, m]);
+		setSelectedId(m.id);
+		setInputText(m.input);
+		startMachine(m);
 	};
 
 	// 操作板の位置(ドラッグで移動可)。既定は左固定エディタと右上の操作クラスタを
@@ -242,7 +290,7 @@ export default function App() {
 					<h1 className="font-bold text-sm">Turing Machine Visualizer</h1>
 				</div>
 				<div className="flex flex-col gap-1 p-3">
-					{machines.map((m) => (
+					{machineList.map((m) => (
 						<button
 							key={m.id}
 							type="button"
@@ -257,6 +305,22 @@ export default function App() {
 							{m.label}
 						</button>
 					))}
+					<div className="mt-1 flex gap-1 border-gray-200 border-t pt-2 dark:border-gray-700">
+						<button
+							type="button"
+							className={`flex-1 ${CTRL}`}
+							onClick={() => createMachine("dfa")}
+						>
+							新規DFA
+						</button>
+						<button
+							type="button"
+							className={`flex-1 ${CTRL}`}
+							onClick={() => createMachine("dtm")}
+						>
+							新規DTM
+						</button>
+					</div>
 				</div>
 			</div>
 
@@ -272,7 +336,7 @@ export default function App() {
 						遷移関数(編集して実行)
 					</h2>
 					<div className="flex-1 overflow-y-auto px-3 py-2">
-						<SpecEditor key={machine.id} machine={machine} onRun={runSpec} />
+						<SpecEditor key={machine.id} machine={machine} onRun={applySpec} />
 					</div>
 				</section>
 			)}

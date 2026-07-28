@@ -114,6 +114,38 @@ describe("SpecEditor", () => {
 		});
 	});
 
+	it("初期状態・受理状態・アルファベットを編集して spec に反映する", () => {
+		const onRun = vi.fn();
+		render(<SpecEditor machine={dfa} onRun={onRun} />);
+		fireEvent.change(screen.getByLabelText("初期状態"), {
+			target: { value: "S" },
+		});
+		fireEvent.change(screen.getByLabelText("受理状態"), {
+			target: { value: "S, T" },
+		});
+		fireEvent.change(screen.getByLabelText("アルファベット"), {
+			target: { value: "x, y" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "この定義で実行" }));
+		const spec = onRun.mock.calls[0][0];
+		expect(spec.start).toBe("S");
+		expect(spec.accept).toEqual(["S", "T"]);
+		expect(spec.alphabet).toEqual(["x", "y"]);
+		// states は from/to・start・accept から導出される。
+		expect(spec.states).toEqual(expect.arrayContaining(["S", "T", "A", "B"]));
+	});
+
+	it("初期状態が空だとエラーで実行しない", () => {
+		const onRun = vi.fn();
+		render(<SpecEditor machine={dfa} onRun={onRun} />);
+		fireEvent.change(screen.getByLabelText("初期状態"), {
+			target: { value: "" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "この定義で実行" }));
+		expect(onRun).not.toHaveBeenCalled();
+		expect(screen.getByText(/必須/)).toBeInTheDocument();
+	});
+
 	it("DTM は書き込み/移動列を表示し、その内容を spec に含める", () => {
 		const onRun = vi.fn();
 		render(<SpecEditor machine={dtm} onRun={onRun} />);

@@ -36,9 +36,24 @@ function rowsFromMachine(machine: Machine): Row[] {
 	}));
 }
 
-// 参照している状態(from/to)を states に取り込む(遷移先の新規状態も動くように)。
-function derivedStates(base: string[], rows: Row[]): string[] {
-	const set = new Set(base);
+// カンマ区切りの入力を記号/状態のリストへ(空白除去・空要素は捨てる)。
+function parseCsv(s: string): string[] {
+	return s
+		.split(",")
+		.map((x) => x.trim())
+		.filter((x) => x !== "");
+}
+
+// 状態集合を導出する: 遷移が参照する from/to に加え、start・accept も含める
+// (遷移を持たない受理状態や新規状態も states に載るように)。
+function derivedStates(rows: Row[], start: string, accept: string[]): string[] {
+	const set = new Set<string>();
+	if (start !== "") {
+		set.add(start);
+	}
+	for (const s of accept) {
+		set.add(s);
+	}
 	for (const r of rows) {
 		if (r.from !== "") {
 			set.add(r.from);
@@ -50,8 +65,9 @@ function derivedStates(base: string[], rows: Row[]): string[] {
 	return [...set];
 }
 
-// 遷移表を編集して spec を組み立てるエディタ。states/alphabet/start/accept は
-// プリセットのものを引き継ぎ、遷移(と参照する状態)だけを編集する。
+// 機械の定義(遷移・初期状態・受理状態・使える記号)を編集して spec を組み立てる
+// エディタ。states は from/to・start・accept から自動導出する。新規機械では空から
+// 定義でき、既存機械では現在の定義を初期値として読み込む。
 export function SpecEditor({
 	machine,
 	onRun,
@@ -59,9 +75,20 @@ export function SpecEditor({
 	machine: Machine;
 	onRun: (spec: Spec) => void;
 }) {
-	const [rows, setRows] = useState<Row[]>(() => rowsFromMachine(machine));
-	const [error, setError] = useState<string | null>(null);
 	const isDfa = machine.kind === "dfa";
+	const [rows, setRows] = useState<Row[]>(() => rowsFromMachine(machine));
+	const [start, setStart] = useState(machine.spec.start);
+	const [accept, setAccept] = useState(machine.spec.accept.join(", "));
+	const [symbols, setSymbols] = useState(() =>
+		(machine.kind === "dfa"
+			? machine.spec.alphabet
+			: machine.spec.tapeAlphabet
+		).join(", "),
+	);
+	const [error, setError] = useState<string | null>(null);
+
+	const acceptList = parseCsv(accept);
+	const states = derivedStates(rows, start, acceptList);
 
 	const update = (i: number, patch: Partial<Row>) => {
 		setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -81,6 +108,10 @@ export function SpecEditor({
 			setError("from と to は空にできません。");
 			return;
 		}
+		if (start === "") {
+			setError("初期状態(start)は必須です。");
+			return;
+		}
 		// 決定性: 同じ (from, 読み) の組は 1 つだけ(契約 §1)。
 		const keys = new Set<string>();
 		for (const r of rows) {
@@ -91,12 +122,13 @@ export function SpecEditor({
 			}
 			keys.add(key);
 		}
+		const symbolList = parseCsv(symbols);
 		if (isDfa) {
 			const spec = {
-				states: derivedStates(machine.spec.states, rows),
-				alphabet: machine.spec.alphabet,
-				start: machine.spec.start,
-				accept: machine.spec.accept,
+				states,
+				alphabet: symbolList,
+				start,
+				accept: acceptList,
 				transitions: rows.map((r) => ({
 					from: r.from,
 					read: r.read,
@@ -105,7 +137,7 @@ export function SpecEditor({
 			};
 			const parsed = dfaSpecSchema.safeParse(spec);
 			if (!parsed.success) {
-				setError("読み記号は 1 文字にしてください(空欄不可)。");
+				setError("読み記号・使える記号は 1 文字にしてください(空欄不可)。");
 				return;
 			}
 			setError(null);
@@ -113,10 +145,10 @@ export function SpecEditor({
 			return;
 		}
 		const spec = {
-			states: derivedStates(machine.spec.states, rows),
-			tapeAlphabet: (machine.spec as DTMSpec).tapeAlphabet,
-			start: machine.spec.start,
-			accept: machine.spec.accept,
+			states,
+			tapeAlphabet: symbolList,
+			start,
+			accept: acceptList,
 			transitions: rows.map((r) => ({
 				from: r.from,
 				read: r.read === "" ? null : r.read,
@@ -127,7 +159,9 @@ export function SpecEditor({
 		};
 		const parsed = dtmSpecSchema.safeParse(spec);
 		if (!parsed.success) {
-			setError("読み/書き記号は 1 文字にしてください(空欄は空白セル)。");
+			setError(
+				"読み/書き・テープ記号は 1 文字にしてください(空欄は空白セル)。",
+			);
 			return;
 		}
 		setError(null);
@@ -139,6 +173,40 @@ export function SpecEditor({
 
 	return (
 		<div className="flex flex-col gap-1">
+			{/* 機械レベルの定義(初期状態・受理状態・使える記号)。states は自動導出。 */}
+			<div className="flex flex-col gap-1 text-xs">
+				<label className="flex items-center gap-1">
+					<span className="w-16 shrink-0 text-gray-500">初期状態</span>
+					<input
+						className={`${cell} flex-1`}
+						value={start}
+						onChange={(e) => setStart(e.target.value)}
+					/>
+				</label>
+				<label className="flex items-center gap-1">
+					<span className="w-16 shrink-0 text-gray-500">受理状態</span>
+					<input
+						className={`${cell} flex-1`}
+						value={accept}
+						onChange={(e) => setAccept(e.target.value)}
+						placeholder="カンマ区切り"
+					/>
+				</label>
+				<label className="flex items-center gap-1">
+					<span className="w-16 shrink-0 text-gray-500">
+						{isDfa ? "アルファベット" : "テープ記号"}
+					</span>
+					<input
+						className={`${cell} flex-1`}
+						value={symbols}
+						onChange={(e) => setSymbols(e.target.value)}
+						placeholder="カンマ区切り"
+					/>
+				</label>
+				<div className="text-gray-400">
+					状態一覧: {states.length > 0 ? states.join(", ") : "(なし)"}
+				</div>
+			</div>
 			<div className="overflow-x-auto">
 				<table className="text-sm">
 					<thead>
