@@ -6,10 +6,13 @@ import {
 } from "react";
 import { AutomatonDiagram } from "./components/AutomatonDiagram.tsx";
 import { ConfigView } from "./components/ConfigView.tsx";
+import { SpecEditor } from "./components/SpecEditor.tsx";
 import { TraceHistory } from "./components/TraceHistory.tsx";
 import { initialDfaConfig, initialDtmConfig } from "./contract/initial.ts";
+import type { DFASpec, DTMSpec } from "./contract/schemas.ts";
 import { type Machine, machines } from "./fixtures/machines.ts";
 import {
+	type Spec,
 	selectCanStepBack,
 	selectCanStepForward,
 	selectCurrentFrame,
@@ -46,6 +49,8 @@ export default function App() {
 	const canBack = useReplayStore(selectCanStepBack);
 	const frames = useReplayStore((s) => s.frames);
 	const error = useReplayStore((s) => s.error);
+	// 実行中の spec(編集して実行したものを状態図に反映するため)。
+	const runningSpec = useReplayStore((s) => s.spec);
 	const {
 		startRun,
 		stepForward,
@@ -62,14 +67,16 @@ export default function App() {
 		startRun(m.kind, m.spec, machineInitial(m));
 	};
 
-	// 編集した入力文字列で現在の機械を実行する。
-	const runInput = () => {
+	// 指定の spec を現在の入力で実行する(入力欄・遷移表エディタの両方から使う)。
+	const runSpec = (spec: Spec) => {
 		const initial =
 			machine.kind === "dfa"
-				? initialDfaConfig(machine.spec, inputText)
-				: initialDtmConfig(machine.spec, inputText);
-		startRun(machine.kind, machine.spec, initial);
+				? initialDfaConfig(spec as DFASpec, inputText)
+				: initialDtmConfig(spec as DTMSpec, inputText);
+		startRun(machine.kind, spec, initial);
 	};
+	// 編集した入力文字列で現在の機械(プリセット spec)を実行する。
+	const runInput = () => runSpec(machine.spec);
 
 	// 操作板の位置(ドラッグで移動可)。
 	const [panelPos, setPanelPos] = useState({ x: 12, y: 12 });
@@ -167,7 +174,7 @@ export default function App() {
 				{frame && (
 					<AutomatonDiagram
 						key={machine.id}
-						spec={machine.spec}
+						spec={runningSpec ?? machine.spec}
 						current={currentState}
 						fired={frame.fired}
 						bottomInset={bottomInset}
@@ -231,6 +238,9 @@ export default function App() {
 						<button type="button" className={CTRL} onClick={runInput}>
 							実行
 						</button>
+					</div>
+					<div className="mt-2 border-gray-200 border-t pt-2 dark:border-gray-700">
+						<SpecEditor key={machine.id} machine={machine} onRun={runSpec} />
 					</div>
 				</div>
 			</div>
