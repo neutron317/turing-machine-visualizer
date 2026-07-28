@@ -10,7 +10,6 @@ import { SpecEditor } from "./components/SpecEditor.tsx";
 import { SymbolPalette } from "./components/SymbolPalette.tsx";
 import { TraceHistory } from "./components/TraceHistory.tsx";
 import { initialDfaConfig, initialDtmConfig } from "./contract/initial.ts";
-import type { DFASpec, DTMSpec } from "./contract/schemas.ts";
 import { type Machine, machines } from "./fixtures/machines.ts";
 import {
 	type Spec,
@@ -38,6 +37,8 @@ const SIDE_PANEL =
 // サイドパネルの見出し行の共通スタイル。
 const PANEL_HEADING =
 	"border-gray-200 border-b px-3 py-2 font-medium text-gray-600 text-xs dark:border-gray-700 dark:text-gray-300";
+// 新規機械の初期状態名。
+const START_STATE = "q0";
 
 // 操作板の位置をビューポート内へクランプする(画面外に落として掴めなくなるのを防ぐ)。
 function clampPanel(x: number, y: number) {
@@ -47,18 +48,16 @@ function clampPanel(x: number, y: number) {
 	};
 }
 
-// 機械の初期コンフィグ(契約 §3)。モジュール定数なので参照が安定する。
-function machineInitial(m: Machine) {
-	return m.kind === "dfa"
-		? initialDfaConfig(m.spec, m.input)
-		: initialDtmConfig(m.spec, m.input);
-}
-
 export default function App() {
+	// 機械一覧(新規作成で増やせるので state で持つ。初期値はプリセット)。
+	const [machineList, setMachineList] = useState<Machine[]>(machines);
 	const [selectedId, setSelectedId] = useState(machines[0].id);
-	const machine = machines.find((m) => m.id === selectedId) ?? machines[0];
+	const machine =
+		machineList.find((m) => m.id === selectedId) ?? machineList[0];
 	// 実行する入力文字列(編集可)。機械を切り替えると既定入力に戻す。
 	const [inputText, setInputText] = useState(machines[0].input);
+	// 新規機械の連番。
+	const newIdRef = useRef(0);
 
 	const frame = useReplayStore(selectCurrentFrame);
 	const cursor = useReplayStore((s) => s.cursor);
@@ -82,36 +81,60 @@ export default function App() {
 		setSpeed,
 	} = useReplayStore.getState();
 
-	// 現在の実行が使っている入力文字列。再生時に入力が変わっていれば実行し直す。
-	const runInputRef = useRef(machines[0].input);
-
-	// 機械(spec + 入力)から実行を開始する。
-	const startMachine = (m: Machine) => {
-		startRun(m.kind, m.spec, machineInitial(m));
-		runInputRef.current = m.input;
+	// 遷移関数エディタの編集を現在の機械へライブ反映する(下の effect が実行を更新)。
+	const onSpecChange = (spec: Spec) => {
+		setMachineList((list) =>
+			list.map((m) => (m.id === selectedId ? ({ ...m, spec } as Machine) : m)),
+		);
 	};
-
-	// 指定の spec を現在の入力で実行する(入力欄・遷移関数エディタの両方から使う)。
-	const runSpec = (spec: Spec) => {
-		const initial =
-			machine.kind === "dfa"
-				? initialDfaConfig(spec as DFASpec, inputText)
-				: initialDtmConfig(spec as DTMSpec, inputText);
-		startRun(machine.kind, spec, initial);
-		runInputRef.current = inputText;
+	// 現在の機械の名前を変更する。
+	const renameMachine = (label: string) => {
+		setMachineList((list) =>
+			list.map((m) => (m.id === selectedId ? { ...m, label } : m)),
+		);
 	};
-	// 編集した入力文字列で現在の機械(プリセット spec)を実行する。
-	const runInput = () => runSpec(machine.spec);
-	// 再生/一時停止。入力が変わっていれば、現在の定義で新しい入力から実行し直す。
+	// 再生/一時停止(最初の再生で、その時点の定義・入力からステップを開始する)。
 	const onPlayPause = () => {
 		if (playing) {
 			pause();
-			return;
+		} else {
+			play();
 		}
-		if (runInputRef.current !== inputText) {
-			runSpec(runningSpec ?? machine.spec);
-		}
-		play();
+	};
+	// 空の新規機械を作成して選択する(定義は空。下の effect が初期状態をセットする)。
+	const createMachine = (kind: "dfa" | "dtm") => {
+		newIdRef.current += 1;
+		const n = newIdRef.current;
+		const base = { id: `new-${kind}-${n}`, input: "" };
+		const m: Machine =
+			kind === "dfa"
+				? {
+						...base,
+						label: `新規DFA ${n}`,
+						kind: "dfa",
+						spec: {
+							states: [START_STATE],
+							alphabet: [],
+							start: START_STATE,
+							accept: [],
+							transitions: [],
+						},
+					}
+				: {
+						...base,
+						label: `新規DTM ${n}`,
+						kind: "dtm",
+						spec: {
+							states: [START_STATE],
+							tapeAlphabet: [],
+							start: START_STATE,
+							accept: [],
+							transitions: [],
+						},
+					};
+		setMachineList((list) => [...list, m]);
+		setSelectedId(m.id);
+		setInputText(m.input);
 	};
 
 	// 操作板の位置(ドラッグで移動可)。既定は左固定エディタと右上の操作クラスタを
@@ -167,12 +190,16 @@ export default function App() {
 		return () => ro.disconnect();
 	}, [hasFrame]);
 
-	// 初回に既定の機械で実行を開始する(machines[0] と startRun は安定参照)。
+	// 現在の機械(kind + spec)と入力からライブで初期コンフィグを組み立て、変更の
+	// たびに実行を初期状態へセットし直す(実行ボタンは無い)。再生/進むで、この
+	// セットされた初期状態からステップを開始する。
 	useEffect(() => {
-		if (useReplayStore.getState().frames.length === 0) {
-			startRun(machines[0].kind, machines[0].spec, machineInitial(machines[0]));
-		}
-	}, [startRun]);
+		const initial =
+			machine.kind === "dfa"
+				? initialDfaConfig(machine.spec, inputText)
+				: initialDtmConfig(machine.spec, inputText);
+		startRun(machine.kind, machine.spec, initial);
+	}, [machine.kind, machine.spec, inputText, startRun]);
 
 	// 自動再生。各ステップ(ネットワーク取得を含む)の完了を待ってから次を予約する
 	// ことで、遅い応答でもリクエストが積み重ならないようにする。
@@ -201,7 +228,6 @@ export default function App() {
 	const selectMachine = (m: Machine) => {
 		setSelectedId(m.id);
 		setInputText(m.input);
-		startMachine(m);
 	};
 
 	const currentState = frame?.config.state ?? machine.spec.start;
@@ -242,7 +268,7 @@ export default function App() {
 					<h1 className="font-bold text-sm">Turing Machine Visualizer</h1>
 				</div>
 				<div className="flex flex-col gap-1 p-3">
-					{machines.map((m) => (
+					{machineList.map((m) => (
 						<button
 							key={m.id}
 							type="button"
@@ -257,6 +283,30 @@ export default function App() {
 							{m.label}
 						</button>
 					))}
+					<label className="mt-1 flex items-center gap-1 text-xs">
+						<span className="shrink-0 text-gray-500">名前</span>
+						<input
+							className="min-w-0 flex-1 rounded border border-gray-300 px-1 py-0.5 text-sm dark:border-gray-600 dark:bg-gray-700"
+							value={machine.label}
+							onChange={(e) => renameMachine(e.target.value)}
+						/>
+					</label>
+					<div className="mt-1 flex gap-1 border-gray-200 border-t pt-2 dark:border-gray-700">
+						<button
+							type="button"
+							className={`flex-1 ${CTRL}`}
+							onClick={() => createMachine("dfa")}
+						>
+							新規DFA
+						</button>
+						<button
+							type="button"
+							className={`flex-1 ${CTRL}`}
+							onClick={() => createMachine("dtm")}
+						>
+							新規DTM
+						</button>
+					</div>
 				</div>
 			</div>
 
@@ -269,10 +319,14 @@ export default function App() {
 					aria-labelledby="editor-heading"
 				>
 					<h2 id="editor-heading" className={PANEL_HEADING}>
-						遷移関数(編集して実行)
+						遷移関数(変更は即反映)
 					</h2>
 					<div className="flex-1 overflow-y-auto px-3 py-2">
-						<SpecEditor key={machine.id} machine={machine} onRun={runSpec} />
+						<SpecEditor
+							key={machine.id}
+							machine={machine}
+							onSpecChange={onSpecChange}
+						/>
 					</div>
 				</section>
 			)}
@@ -328,7 +382,7 @@ export default function App() {
 								{cursor + 1} / {frameCount}
 							</span>
 						</div>
-						{/* 入力(テープの内容)。ここで書いた記号列が初期テープになる。 */}
+						{/* 入力(テープの内容)。変更すると即、初期テープに反映される。 */}
 						<div className="flex items-center gap-2 px-3 pt-2">
 							<label htmlFor="input-str" className="text-gray-500 text-xs">
 								入力(テープ)
@@ -338,20 +392,8 @@ export default function App() {
 								type="text"
 								value={inputText}
 								onChange={(e) => setInputText(e.target.value)}
-								onKeyDown={(e) => {
-									// IME 変換確定の Enter で誤って実行しない。
-									if (e.nativeEvent.isComposing) {
-										return;
-									}
-									if (e.key === "Enter") {
-										runInput();
-									}
-								}}
 								className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 font-mono text-sm dark:border-gray-600 dark:bg-gray-700"
 							/>
-							<button type="button" className={CTRL} onClick={runInput}>
-								実行
-							</button>
 						</div>
 						{/* 使える記号の一覧(クリックで入力へ追記)。 */}
 						<div className="px-3 pt-1">

@@ -59,17 +59,15 @@ describe("App(再生 UI)", () => {
 
 	it("DTM を選ぶとテープを表示する", () => {
 		render(<App />);
-		fireEvent.click(screen.getByRole("button", { name: /DTM/ }));
+		fireEvent.click(screen.getByRole("button", { name: /DTM:/ }));
 		expect(screen.getByText(/状態: P0/)).toBeInTheDocument();
 		expect(screen.getByText(/ヘッド/)).toBeInTheDocument();
 	});
 
-	it("入力を編集して「実行」すると新しい入力で開始する", () => {
+	it("入力を変えると即、初期テープに反映される(実行ボタン無し)", () => {
 		render(<App />);
 		const input = screen.getByLabelText(/入力/) as HTMLInputElement;
 		fireEvent.change(input, { target: { value: "aaa" } });
-		fireEvent.click(screen.getByRole("button", { name: "実行" }));
-		// 初期コンフィグの残り入力が 3 文字(aaa)になる → 位置は 1/1。
 		expect(screen.getByText("1 / 1")).toBeInTheDocument();
 		expect(useReplayStore.getState().frames[0]?.config).toEqual({
 			state: "Even",
@@ -81,7 +79,7 @@ describe("App(再生 UI)", () => {
 		render(<App />);
 		const input = () => screen.getByLabelText(/入力/) as HTMLInputElement;
 		fireEvent.change(input(), { target: { value: "aaa" } });
-		fireEvent.click(screen.getByRole("button", { name: /DTM/ }));
+		fireEvent.click(screen.getByRole("button", { name: /DTM:/ }));
 		expect(input().value).toBe("abc"); // DTM の既定入力
 	});
 
@@ -95,7 +93,7 @@ describe("App(再生 UI)", () => {
 			screen.getByRole("heading", { name: /遷移関数/ }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: "この定義で実行" }),
+			screen.getByRole("button", { name: "行を追加" }),
 		).toBeInTheDocument();
 	});
 
@@ -104,16 +102,10 @@ describe("App(再生 UI)", () => {
 		expect(container.querySelectorAll("#input-str")).toHaveLength(1);
 	});
 
-	it("入力を変えて再生すると新しい入力で実行し直す", () => {
+	it("再生を押すと再生状態になる(最初の再生で実行が始まる)", () => {
 		render(<App />);
-		const input = screen.getByLabelText(/入力/) as HTMLInputElement;
-		fireEvent.change(input, { target: { value: "aaa" } });
 		fireEvent.click(screen.getByRole("button", { name: "再生" }));
-		// 再生時に入力変更を検知し、初期テープを "aaa" で作り直す。
-		expect(useReplayStore.getState().frames[0]?.config).toEqual({
-			state: "Even",
-			rest: ["a", "a", "a"],
-		});
+		expect(useReplayStore.getState().playing).toBe(true);
 		// 後片付け: 自動再生を止める。
 		useReplayStore.getState().pause();
 	});
@@ -142,7 +134,7 @@ describe("App(再生 UI)", () => {
 
 	it("DTM では tapeAlphabet の記号を表示し、末尾へ追記する", () => {
 		render(<App />);
-		fireEvent.click(screen.getByRole("button", { name: /DTM/ }));
+		fireEvent.click(screen.getByRole("button", { name: /DTM:/ }));
 		// anbncn の tapeAlphabet は a,b,c,X,Y,Z。
 		for (const s of ["a", "b", "c", "X", "Y", "Z"]) {
 			expect(
@@ -154,6 +146,76 @@ describe("App(再生 UI)", () => {
 		expect(input.value).toBe("abc");
 		fireEvent.click(screen.getByRole("button", { name: "記号 X を追加" }));
 		expect(input.value).toBe("abcX");
+	});
+
+	it("新規 DFA を作成して選択・編集開始できる", () => {
+		render(<App />);
+		fireEvent.click(screen.getByRole("button", { name: "新規DFA" }));
+		// 選択され、空機械の初期状態 q0 が表示される。
+		expect(screen.getByText(/状態: q0/)).toBeInTheDocument();
+		// エディタの初期状態フィールドが q0(ここから定義を編集していく)。
+		expect((screen.getByLabelText("初期状態") as HTMLInputElement).value).toBe(
+			"q0",
+		);
+	});
+
+	it("新規 DTM を作成すると DTM 用エディタ(テープ記号)を表示する", () => {
+		render(<App />);
+		fireEvent.click(screen.getByRole("button", { name: "新規DTM" }));
+		expect(screen.getByText(/状態: q0/)).toBeInTheDocument();
+		// DTM は「テープ記号」一覧を持つ(DFA は「アルファベット」)。
+		expect(screen.getByText(/テープ記号/)).toBeInTheDocument();
+	});
+
+	it("エディタの編集は機械へライブ反映され、切替後も残る", () => {
+		render(<App />);
+		fireEvent.change(screen.getByLabelText("初期状態"), {
+			target: { value: "X" },
+		});
+		// 別機械へ切替 → 戻る。
+		fireEvent.click(screen.getByRole("button", { name: /DTM:/ }));
+		fireEvent.click(screen.getByRole("button", { name: /DFA:/ }));
+		expect((screen.getByLabelText("初期状態") as HTMLInputElement).value).toBe(
+			"X",
+		);
+	});
+
+	it("新規 DTM に遷移を定義するとライブで実行に反映される(記号は自動導出)", () => {
+		render(<App />);
+		fireEvent.click(screen.getByRole("button", { name: "新規DTM" }));
+		fireEvent.click(screen.getByRole("button", { name: "行を追加" }));
+		fireEvent.change(screen.getByLabelText("from 0"), {
+			target: { value: "q0" },
+		});
+		fireEvent.change(screen.getByLabelText("read 0"), {
+			target: { value: "a" },
+		});
+		fireEvent.change(screen.getByLabelText("write 0"), {
+			target: { value: "a" },
+		});
+		fireEvent.change(screen.getByLabelText("to 0"), {
+			target: { value: "q0" },
+		});
+		// biome-ignore lint/suspicious/noExplicitAny: テストで spec を緩く読む
+		const spec = useReplayStore.getState().spec as any;
+		// tapeAlphabet は read/write("a")から自動導出される。
+		expect(spec.tapeAlphabet).toContain("a");
+		expect(spec.transitions[0]).toEqual({
+			from: "q0",
+			read: "a",
+			to: "q0",
+			write: "a",
+			move: "R",
+		});
+	});
+
+	it("機械の名前を変更できる", () => {
+		render(<App />);
+		const nameInput = screen.getByLabelText("名前") as HTMLInputElement;
+		fireEvent.change(nameInput, { target: { value: "マイ機械" } });
+		expect(
+			screen.getByRole("button", { name: "マイ機械" }),
+		).toBeInTheDocument();
 	});
 
 	it("ウィンドウを縮小すると操作板が画面内へクランプされる", () => {
@@ -180,7 +242,7 @@ describe("App(再生 UI)", () => {
 		// 初期は DFA の Even が active。
 		expect(activeState()).toBe("Even");
 		// DTM に切替 → P0 が active。
-		fireEvent.click(screen.getByRole("button", { name: /DTM/ }));
+		fireEvent.click(screen.getByRole("button", { name: /DTM:/ }));
 		expect(activeState()).toBe("P0");
 		// 進むと状態図の現在状態が追従(P0 -> P1、取得は非同期)。
 		fireEvent.click(screen.getByRole("button", { name: /進む/ }));
