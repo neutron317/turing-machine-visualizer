@@ -39,7 +39,8 @@ function toGraph(spec: DFASpec | DTMSpec): {
 } {
 	const grouped = new Map<string, Edge>();
 	for (const t of spec.transitions) {
-		const key = `${t.from}->${t.to}`;
+		// 状態名は無制約なので、区切り文字での衝突を避けてタプルを JSON 化する。
+		const key = JSON.stringify([t.from, t.to]);
 		const label = transLabel(t);
 		const g = grouped.get(key);
 		if (g) {
@@ -285,7 +286,7 @@ export function AutomatonDiagram({
 					}
 					const geo = e.from === e.to ? selfLoop(a, c) : curve(a, b);
 					return (
-						<g key={`${e.from}->${e.to}`}>
+						<g key={JSON.stringify([e.from, e.to])}>
 							<path
 								d={geo.d}
 								fill="none"
