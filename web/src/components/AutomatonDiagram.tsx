@@ -181,13 +181,17 @@ export function AutomatonDiagram({
 			e.preventDefault();
 			const rect = svg.getBoundingClientRect();
 			const factor = e.deltaY > 0 ? 1.1 : 1 / 1.1;
-			const fx = (e.clientX - rect.left) / rect.width;
-			const fy = (e.clientY - rect.top) / rect.height;
 			setVb((v) => {
 				const nw = Math.min(Math.max(v.w * factor, size / 4), size * 2);
+				// letterbox(meet)を考慮してカーソル直下の viewBox 座標を固定する。
+				const s = Math.min(rect.width / v.w, rect.height / v.h);
+				const px =
+					v.x + (e.clientX - rect.left - (rect.width - v.w * s) / 2) / s;
+				const py =
+					v.y + (e.clientY - rect.top - (rect.height - v.h * s) / 2) / s;
 				return {
-					x: v.x + fx * (v.w - nw),
-					y: v.y + fy * (v.h - nw),
+					x: px - ((px - v.x) / v.w) * nw,
+					y: py - ((py - v.y) / v.h) * nw,
 					w: nw,
 					h: nw,
 				};
@@ -206,8 +210,11 @@ export function AutomatonDiagram({
 			return;
 		}
 		const rect = e.currentTarget.getBoundingClientRect();
-		const dx = ((e.clientX - dragRef.current.x) / rect.width) * vb.w;
-		const dy = ((e.clientY - dragRef.current.y) / rect.height) * vb.h;
+		// preserveAspectRatio="meet" の実効スケールは幅・高さの小さい方で決まる。
+		// これを使わないと横方向のパンがカーソルに追従せず鈍く感じる。
+		const s = Math.min(rect.width / vb.w, rect.height / vb.h);
+		const dx = (e.clientX - dragRef.current.x) / s;
+		const dy = (e.clientY - dragRef.current.y) / s;
 		dragRef.current = { x: e.clientX, y: e.clientY };
 		setVb((v) => ({ ...v, x: v.x - dx, y: v.y - dy }));
 	};

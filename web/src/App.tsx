@@ -176,7 +176,7 @@ export default function App() {
 								{cursor + 1} / {frameCount}
 							</span>
 						</div>
-						<div className="overflow-hidden px-3 pb-3">
+						<div className="px-3 pb-3">
 							<ConfigView frame={frame} />
 						</div>
 					</div>
