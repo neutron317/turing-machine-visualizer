@@ -140,7 +140,7 @@ describe("App(再生 UI)", () => {
 		expect(input.value).toBe("aaa"); // クリックで追記
 	});
 
-	it("DTM では tapeAlphabet の記号を表示する", () => {
+	it("DTM では tapeAlphabet の記号を表示し、末尾へ追記する", () => {
 		render(<App />);
 		fireEvent.click(screen.getByRole("button", { name: /DTM/ }));
 		// anbncn の tapeAlphabet は a,b,c,X,Y,Z。
@@ -149,6 +149,11 @@ describe("App(再生 UI)", () => {
 				screen.getByRole("button", { name: `記号 ${s} を追加` }),
 			).toBeInTheDocument();
 		}
+		// 相異なる既定入力 "abc" と記号 "X" で末尾追記を固定(先頭追記なら "Xabc")。
+		const input = screen.getByLabelText(/入力/) as HTMLInputElement;
+		expect(input.value).toBe("abc");
+		fireEvent.click(screen.getByRole("button", { name: "記号 X を追加" }));
+		expect(input.value).toBe("abcX");
 	});
 
 	it("ウィンドウを縮小すると操作板が画面内へクランプされる", () => {
