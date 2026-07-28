@@ -48,9 +48,17 @@ export default function App() {
 		if (!panelDrag.current) {
 			return;
 		}
+		// 画面外へ落として掴み直せなくならないよう、ビューポート内にクランプする。
+		const w = 240; // パネル幅(w-60)
 		setPanelPos({
-			x: e.clientX - panelDrag.current.dx,
-			y: e.clientY - panelDrag.current.dy,
+			x: Math.min(
+				Math.max(0, e.clientX - panelDrag.current.dx),
+				window.innerWidth - w,
+			),
+			y: Math.min(
+				Math.max(0, e.clientY - panelDrag.current.dy),
+				window.innerHeight - 40,
+			),
 		});
 	};
 	const onPanelUp = () => {
