@@ -1,4 +1,9 @@
-import { useEffect, useState } from "react";
+import {
+	type PointerEvent as ReactPointerEvent,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { AutomatonDiagram } from "./components/AutomatonDiagram.tsx";
 import { ConfigView } from "./components/ConfigView.tsx";
 import { type Machine, machines } from "./fixtures/machines.ts";
@@ -28,6 +33,29 @@ export default function App() {
 	const canBack = useReplayStore(selectCanStepBack);
 	const { load, stepForward, stepBack, reset, play, pause, setSpeed } =
 		useReplayStore.getState();
+
+	// 操作板の位置(ドラッグで移動可)。
+	const [panelPos, setPanelPos] = useState({ x: 12, y: 12 });
+	const panelDrag = useRef<{ dx: number; dy: number } | null>(null);
+	const onPanelDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+		panelDrag.current = {
+			dx: e.clientX - panelPos.x,
+			dy: e.clientY - panelPos.y,
+		};
+		e.currentTarget.setPointerCapture(e.pointerId);
+	};
+	const onPanelMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+		if (!panelDrag.current) {
+			return;
+		}
+		setPanelPos({
+			x: e.clientX - panelDrag.current.dx,
+			y: e.clientY - panelDrag.current.dy,
+		});
+	};
+	const onPanelUp = () => {
+		panelDrag.current = null;
+	};
 
 	// 初回に既定の機械を読み込む。
 	useEffect(() => {
@@ -68,10 +96,21 @@ export default function App() {
 				)}
 			</div>
 
-			{/* 操作板(左上) */}
-			<div className={`absolute top-3 left-3 z-20 w-64 p-3 ${PANEL}`}>
-				<h1 className="font-bold text-sm">Turing Machine Visualizer</h1>
-				<div className="mt-2 flex flex-col gap-1">
+			{/* 操作板(ドラッグで移動可) */}
+			<div
+				className={`absolute z-20 w-60 ${PANEL}`}
+				style={{ left: panelPos.x, top: panelPos.y }}
+			>
+				<div
+					className="flex cursor-move items-center gap-2 rounded-t-lg border-gray-200 border-b bg-gray-100/70 px-3 py-1.5 dark:border-gray-700 dark:bg-gray-700/40"
+					onPointerDown={onPanelDown}
+					onPointerMove={onPanelMove}
+					onPointerUp={onPanelUp}
+				>
+					<span className="text-gray-400 leading-none">⠿</span>
+					<h1 className="font-bold text-sm">Turing Machine Visualizer</h1>
+				</div>
+				<div className="flex flex-col gap-1 p-3">
 					{machines.map((m) => (
 						<button
 							key={m.id}
@@ -88,65 +127,67 @@ export default function App() {
 						</button>
 					))}
 				</div>
-				<div className="mt-3 flex flex-wrap items-center gap-1">
-					<button
-						type="button"
-						aria-label="最初へ"
-						className={CTRL}
-						onClick={reset}
-					>
-						↺
-					</button>
-					<button
-						type="button"
-						aria-label="戻る"
-						className={CTRL}
-						onClick={stepBack}
-						disabled={!canBack}
-					>
-						◀
-					</button>
-					<button
-						type="button"
-						aria-label={playing ? "一時停止" : "再生"}
-						className={CTRL}
-						onClick={playing ? pause : play}
-					>
-						{playing ? "⏸" : "▶"}
-					</button>
-					<button
-						type="button"
-						aria-label="進む"
-						className={CTRL}
-						onClick={stepForward}
-						disabled={!canForward}
-					>
-						⏭
-					</button>
-					<select
-						aria-label="速度"
-						className="rounded border border-gray-300 bg-transparent px-1 py-0.5 text-sm dark:border-gray-600"
-						value={speed}
-						onChange={(e) => setSpeed(Number(e.target.value))}
-					>
-						{SPEEDS.map((s) => (
-							<option key={s} value={s}>
-								{s}x
-							</option>
-						))}
-					</select>
-					<span className="ml-auto text-gray-500 text-sm">
-						{cursor + 1} / {frameCount}
-					</span>
-				</div>
 			</div>
 
-			{/* テープ/状態(下部中央) */}
+			{/* 下部: 再生コントロール + テープ(全幅) */}
 			{frame && (
-				<div
-					className={`absolute bottom-3 left-1/2 z-20 max-w-[90vw] -translate-x-1/2 overflow-x-auto p-3 ${PANEL}`}
-				>
-					<ConfigView frame={frame} />
+				<div className="absolute inset-x-0 bottom-0 z-20 border-gray-200 border-t bg-white/90 p-3 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90">
+					<div className="mx-auto flex max-w-5xl flex-col gap-3">
+						<div className="flex flex-wrap items-center gap-2">
+							<button
+								type="button"
+								aria-label="最初へ"
+								className={CTRL}
+								onClick={reset}
+							>
+								↺
+							</button>
+							<button
+								type="button"
+								aria-label="戻る"
+								className={CTRL}
+								onClick={stepBack}
+								disabled={!canBack}
+							>
+								◀
+							</button>
+							<button
+								type="button"
+								aria-label={playing ? "一時停止" : "再生"}
+								className={CTRL}
+								onClick={playing ? pause : play}
+							>
+								{playing ? "⏸" : "▶"}
+							</button>
+							<button
+								type="button"
+								aria-label="進む"
+								className={CTRL}
+								onClick={stepForward}
+								disabled={!canForward}
+							>
+								⏭
+							</button>
+							<select
+								aria-label="速度"
+								className="rounded border border-gray-300 bg-transparent px-1 py-0.5 text-sm dark:border-gray-600"
+								value={speed}
+								onChange={(e) => setSpeed(Number(e.target.value))}
+							>
+								{SPEEDS.map((s) => (
+									<option key={s} value={s}>
+										{s}x
+									</option>
+								))}
+							</select>
+							<span className="ml-auto text-gray-500 text-sm">
+								{cursor + 1} / {frameCount}
+							</span>
+						</div>
+						<div className="overflow-x-auto">
+							<ConfigView frame={frame} />
+						</div>
+					</div>
 				</div>
 			)}
 		</main>

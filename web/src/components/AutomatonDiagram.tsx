@@ -159,19 +159,17 @@ export function AutomatonDiagram({
 	const [vb, setVb] = useState(() => ({ x: 0, y: 0, w: size, h: size }));
 	const dragRef = useRef<{ x: number; y: number } | null>(null);
 
-	// (fx,fy)(相対位置 0..1)を固定したままズームする。factor<1 で拡大。
-	const zoomAt = (factor: number, fx: number, fy: number) => {
+	// スケール(1=フィット, >1=拡大)へ、現在の中心を保ってズームする。
+	const zoomTo = (scale: number) => {
 		setVb((v) => {
-			const nw = Math.min(Math.max(v.w * factor, size / 4), size * 2);
-			return {
-				x: v.x + fx * (v.w - nw),
-				y: v.y + fy * (v.h - nw),
-				w: nw,
-				h: nw,
-			};
+			const nw = Math.min(Math.max(size / scale, size / 4), size * 2);
+			const cx = v.x + v.w / 2;
+			const cy = v.y + v.h / 2;
+			return { x: cx - nw / 2, y: cy - nw / 2, w: nw, h: nw };
 		});
 	};
 	const reset = () => setVb({ x: 0, y: 0, w: size, h: size });
+	const scale = size / vb.w;
 
 	// ホイールでカーソル位置基準にズーム(ページスクロールを止めるため非 passive)。
 	useEffect(() => {
@@ -217,30 +215,27 @@ export function AutomatonDiagram({
 		dragRef.current = null;
 	};
 
-	const btn =
-		"rounded border border-gray-300 bg-white/80 px-2 py-0.5 text-sm hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800/80 dark:hover:bg-gray-700";
-
 	return (
 		<div className="relative h-full w-full">
-			<div className="absolute top-2 right-2 z-10 flex gap-1">
+			<div className="absolute top-2 right-2 z-10 flex items-center gap-2 rounded border border-gray-300 bg-white/80 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800/80">
+				<span className="text-gray-500 text-xs">ズーム</span>
+				<input
+					type="range"
+					aria-label="ズーム"
+					min={0.5}
+					max={4}
+					step={0.1}
+					value={scale}
+					onChange={(e) => zoomTo(Number(e.target.value))}
+					className="w-28"
+				/>
 				<button
 					type="button"
-					aria-label="縮小"
-					className={btn}
-					onClick={() => zoomAt(1.3, 0.5, 0.5)}
+					aria-label="リセット"
+					className="rounded px-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+					onClick={reset}
 				>
-					−
-				</button>
-				<button
-					type="button"
-					aria-label="拡大"
-					className={btn}
-					onClick={() => zoomAt(1 / 1.3, 0.5, 0.5)}
-				>
-					＋
-				</button>
-				<button type="button" className={btn} onClick={reset}>
-					リセット
+					⟲
 				</button>
 			</div>
 			<svg

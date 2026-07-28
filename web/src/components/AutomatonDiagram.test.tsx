@@ -55,15 +55,17 @@ describe("AutomatonDiagram", () => {
 		).toContain("arrow-active");
 	});
 
-	it("拡大ボタンで viewBox が狭まり、リセットで戻る", () => {
+	it("ズームスライダーで viewBox が狭まり、リセットで戻る", () => {
 		const { container, getByRole } = render(
 			<AutomatonDiagram spec={dfaSpec} current="Even" />,
 		);
 		const svg = container.querySelector("svg");
 		const initial = svg?.getAttribute("viewBox");
 		const w0 = vbWidth(svg);
-		fireEvent.click(getByRole("button", { name: "拡大" }));
-		expect(vbWidth(svg)).toBeLessThan(w0); // 拡大で viewBox 幅が縮む
+		fireEvent.change(getByRole("slider", { name: "ズーム" }), {
+			target: { value: "2" },
+		});
+		expect(vbWidth(svg)).toBeLessThan(w0); // 2x 拡大で viewBox 幅が縮む
 		fireEvent.click(getByRole("button", { name: "リセット" }));
 		expect(svg?.getAttribute("viewBox")).toBe(initial);
 	});
