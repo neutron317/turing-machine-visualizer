@@ -1,6 +1,7 @@
 import {
 	type PointerEvent as ReactPointerEvent,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -8,11 +9,17 @@ import { AutomatonDiagram } from "./components/AutomatonDiagram.tsx";
 import { ConfigView } from "./components/ConfigView.tsx";
 import { SpecEditor } from "./components/SpecEditor.tsx";
 import { SymbolPalette } from "./components/SymbolPalette.tsx";
+import {
+	buildSpec,
+	type Draft,
+	deriveStates,
+	draftFromMachine,
+	freshState,
+} from "./components/specDraft.ts";
 import { TraceHistory } from "./components/TraceHistory.tsx";
 import { initialDfaConfig, initialDtmConfig } from "./contract/initial.ts";
 import { type Machine, machines } from "./fixtures/machines.ts";
 import {
-	type Spec,
 	selectCanStepBack,
 	selectCanStepForward,
 	selectCurrentFrame,
@@ -54,8 +61,11 @@ export default function App() {
 	const [selectedId, setSelectedId] = useState(machines[0].id);
 	const machine =
 		machineList.find((m) => m.id === selectedId) ?? machineList[0];
+	const isDfa = machine.kind === "dfa";
 	// 実行する入力文字列(編集可)。機械を切り替えると既定入力に戻す。
 	const [inputText, setInputText] = useState(machines[0].input);
+	// 編集中の機械定義(表と図の両方から編集する。機械切替時に該当機械から初期化)。
+	const [draft, setDraft] = useState<Draft>(() => draftFromMachine(machine));
 	// 新規機械の連番。
 	const newIdRef = useRef(0);
 
@@ -81,11 +91,30 @@ export default function App() {
 		setSpeed,
 	} = useReplayStore.getState();
 
-	// 遷移関数エディタの編集を現在の機械へライブ反映する(下の effect が実行を更新)。
-	const onSpecChange = (spec: Spec) => {
+	// draft から spec を組み立てる(未完成/無効なら error)。妥当なら現在の機械へ
+	// コミットし、下の再初期化 effect が実行へ反映する。
+	const built = useMemo(() => buildSpec(draft, isDfa), [draft, isDfa]);
+	useEffect(() => {
+		const spec = built.spec;
+		if (!spec) {
+			return;
+		}
 		setMachineList((list) =>
 			list.map((m) => (m.id === selectedId ? ({ ...m, spec } as Machine) : m)),
 		);
+	}, [built, selectedId]);
+	// 図でノードを追加(孤立状態)/ 状態間ドラッグで遷移を追加(read 等は表で入力)。
+	const onAddState = () => {
+		setDraft((d) => ({
+			...d,
+			states: [...d.states, freshState(deriveStates(d))],
+		}));
+	};
+	const onAddTransition = (from: string, to: string) => {
+		setDraft((d) => ({
+			...d,
+			rows: [...d.rows, { from, read: "", to, write: "", move: "R" }],
+		}));
 	};
 	// 現在の機械の名前を変更する。
 	const renameMachine = (label: string) => {
@@ -135,6 +164,7 @@ export default function App() {
 		setMachineList((list) => [...list, m]);
 		setSelectedId(m.id);
 		setInputText(m.input);
+		setDraft(draftFromMachine(m));
 	};
 
 	// 操作板の位置(ドラッグで移動可)。既定は左固定エディタと右上の操作クラスタを
@@ -228,6 +258,7 @@ export default function App() {
 	const selectMachine = (m: Machine) => {
 		setSelectedId(m.id);
 		setInputText(m.input);
+		setDraft(draftFromMachine(m));
 	};
 
 	const currentState = frame?.config.state ?? machine.spec.start;
@@ -249,6 +280,9 @@ export default function App() {
 						rightInset={historyOpen ? HISTORY_W : 0}
 						historyOpen={historyOpen}
 						onToggleHistory={() => setHistoryOpen((o) => !o)}
+						editable
+						onAddState={onAddState}
+						onAddTransition={onAddTransition}
 					/>
 				)}
 			</div>
@@ -323,9 +357,10 @@ export default function App() {
 					</h2>
 					<div className="flex-1 overflow-y-auto px-3 py-2">
 						<SpecEditor
-							key={machine.id}
-							machine={machine}
-							onSpecChange={onSpecChange}
+							draft={draft}
+							isDfa={isDfa}
+							error={built.error ?? null}
+							onChange={setDraft}
 						/>
 					</div>
 				</section>

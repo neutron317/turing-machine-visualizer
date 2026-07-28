@@ -209,6 +209,11 @@ describe("App(再生 UI)", () => {
 		});
 	});
 
+	it("状態図が編集モード(空白クリック=状態 / ドラッグ=遷移)である", () => {
+		render(<App />);
+		expect(screen.getByText(/空白クリック=状態/)).toBeInTheDocument();
+	});
+
 	it("機械の名前を変更できる", () => {
 		render(<App />);
 		const nameInput = screen.getByLabelText("名前") as HTMLInputElement;

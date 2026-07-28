@@ -1,5 +1,5 @@
 import { fireEvent, render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { machines } from "../fixtures/machines.ts";
 import { AutomatonDiagram } from "./AutomatonDiagram.tsx";
 
@@ -70,6 +70,53 @@ describe("AutomatonDiagram", () => {
 		expect(dtm.querySelector("svg")?.getAttribute("viewBox")).toBe(
 			"0 0 640 640",
 		);
+	});
+
+	it("編集: 空白クリックで状態追加、ノード間ドラッグで遷移追加", () => {
+		const onAddState = vi.fn();
+		const onAddTransition = vi.fn();
+		const spec = {
+			states: ["A", "B"],
+			alphabet: [],
+			start: "A",
+			accept: [],
+			transitions: [],
+		};
+		const { container } = render(
+			<AutomatonDiagram
+				spec={spec}
+				current="A"
+				editable
+				onAddState={onAddState}
+				onAddTransition={onAddTransition}
+			/>,
+		);
+		const svg = container.querySelector("svg") as SVGSVGElement;
+		// jsdom はレイアウト非対応。rect を確定させ、client 座標 = viewBox 座標にする
+		// (viewBox は 0 0 640 640 / preserveAspectRatio meet で s=1)。
+		svg.setPointerCapture = () => {};
+		svg.getBoundingClientRect = () =>
+			({
+				left: 0,
+				top: 0,
+				width: 640,
+				height: 640,
+				right: 640,
+				bottom: 640,
+				x: 0,
+				y: 0,
+				toJSON: () => {},
+				// biome-ignore lint/suspicious/noExplicitAny: テスト用のダミー rect
+			}) as any;
+		// 空白(ノードから離れた点)をクリック → 状態追加。
+		fireEvent.pointerDown(svg, { clientX: 10, clientY: 10 });
+		fireEvent.pointerUp(svg, { clientX: 10, clientY: 10 });
+		expect(onAddState).toHaveBeenCalledTimes(1);
+		// ノード A(320,82)→ B(320,558)へドラッグ → 遷移 A→B を追加。
+		fireEvent.pointerDown(svg, { clientX: 320, clientY: 82 });
+		fireEvent.pointerMove(svg, { clientX: 320, clientY: 300 });
+		fireEvent.pointerUp(svg, { clientX: 320, clientY: 558 });
+		expect(onAddTransition).toHaveBeenCalledWith("A", "B");
 	});
 
 	it("ズームスライダーで viewBox が狭まり、リセットで戻る", () => {

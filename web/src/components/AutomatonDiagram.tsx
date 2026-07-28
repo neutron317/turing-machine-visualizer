@@ -114,6 +114,21 @@ function selfLoop(p: Point, c: number): { d: string; lx: number; ly: number } {
 	};
 }
 
+// クライアント座標 → viewBox(SVG)座標。preserveAspectRatio="meet" の
+// レターボックスを考慮する(パン/ズーム/当たり判定で共通に使う)。
+function clientToSvg(
+	clientX: number,
+	clientY: number,
+	rect: DOMRect,
+	vb: { x: number; y: number; w: number; h: number },
+): Point {
+	const s = Math.min(rect.width / vb.w, rect.height / vb.h);
+	return {
+		x: vb.x + (clientX - rect.left - (rect.width - vb.w * s) / 2) / s,
+		y: vb.y + (clientY - rect.top - (rect.height - vb.h * s) / 2) / s,
+	};
+}
+
 export function AutomatonDiagram({
 	spec,
 	current,
@@ -121,6 +136,9 @@ export function AutomatonDiagram({
 	rightInset = 0,
 	historyOpen = false,
 	onToggleHistory,
+	editable = false,
+	onAddState,
+	onAddTransition,
 }: {
 	spec: DFASpec | DTMSpec;
 	current: string;
@@ -128,6 +146,10 @@ export function AutomatonDiagram({
 	rightInset?: number;
 	historyOpen?: boolean;
 	onToggleHistory?: () => void;
+	// 編集モード: 空白クリックで状態追加、状態間ドラッグで遷移追加。
+	editable?: boolean;
+	onAddState?: () => void;
+	onAddTransition?: (from: string, to: string) => void;
 }) {
 	const { states, accept, start, edges } = toGraph(spec);
 	const firedKey = fired ? JSON.stringify([fired.from, fired.to]) : null;
@@ -168,7 +190,32 @@ export function AutomatonDiagram({
 	// --- pan / zoom(viewBox を操作。ライブラリ不要)---
 	const svgRef = useRef<SVGSVGElement>(null);
 	const [vb, setVb] = useState(() => ({ x: 0, y: 0, w: size, h: size }));
-	const dragRef = useRef<{ x: number; y: number } | null>(null);
+	// ドラッグの種別: pan(視点移動)か link(遷移の作図)。moved でクリックと
+	// ドラッグを区別する(空白クリック=状態追加、ドラッグ=パン/遷移作図)。
+	const gesture = useRef<{
+		kind: "pan" | "link";
+		from?: string;
+		sx: number;
+		sy: number;
+		lastX: number;
+		lastY: number;
+		moved: boolean;
+	} | null>(null);
+	// 作図中の一時線(from ノード → カーソル)。
+	const [link, setLink] = useState<{
+		from: string;
+		x: number;
+		y: number;
+	} | null>(null);
+	// SVG 座標で半径 R_NODE 内の最も近いノード名を返す。
+	const hitNode = (x: number, y: number): string | null => {
+		for (const [name, p] of pos) {
+			if (Math.hypot(x - p.x, y - p.y) <= R_NODE) {
+				return name;
+			}
+		}
+		return null;
+	};
 
 	// スケール(1=フィット, >1=拡大)へ、現在の中心を保ってズームする。
 	const zoomTo = (scale: number) => {
@@ -214,25 +261,73 @@ export function AutomatonDiagram({
 	}, []);
 
 	const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
-		dragRef.current = { x: e.clientX, y: e.clientY };
+		const rect = e.currentTarget.getBoundingClientRect();
+		const p = clientToSvg(e.clientX, e.clientY, rect, vb);
+		const hit = editable ? hitNode(p.x, p.y) : null;
+		gesture.current = {
+			kind: hit ? "link" : "pan",
+			from: hit ?? undefined,
+			sx: e.clientX,
+			sy: e.clientY,
+			lastX: e.clientX,
+			lastY: e.clientY,
+			moved: false,
+		};
+		if (hit) {
+			setLink({ from: hit, x: p.x, y: p.y });
+		}
 		e.currentTarget.setPointerCapture(e.pointerId);
 	};
 	const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
-		if (!dragRef.current) {
+		const g = gesture.current;
+		if (!g) {
 			return;
 		}
+		if (!g.moved && Math.hypot(e.clientX - g.sx, e.clientY - g.sy) > 4) {
+			g.moved = true;
+		}
 		const rect = e.currentTarget.getBoundingClientRect();
-		// preserveAspectRatio="meet" の実効スケールは幅・高さの小さい方で決まる。
-		// これを使わないと横方向のパンがカーソルに追従せず鈍く感じる。
+		if (g.kind === "link") {
+			const p = clientToSvg(e.clientX, e.clientY, rect, vb);
+			setLink((l) => (l ? { ...l, x: p.x, y: p.y } : l));
+			return;
+		}
+		// パン: preserveAspectRatio="meet" の実効スケールで delta を換算する。
 		const s = Math.min(rect.width / vb.w, rect.height / vb.h);
-		const dx = (e.clientX - dragRef.current.x) / s;
-		const dy = (e.clientY - dragRef.current.y) / s;
-		dragRef.current = { x: e.clientX, y: e.clientY };
+		const dx = (e.clientX - g.lastX) / s;
+		const dy = (e.clientY - g.lastY) / s;
+		g.lastX = e.clientX;
+		g.lastY = e.clientY;
 		setVb((v) => ({ ...v, x: v.x - dx, y: v.y - dy }));
 	};
-	const onPointerUp = () => {
-		dragRef.current = null;
+	const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
+		const g = gesture.current;
+		gesture.current = null;
+		if (!g) {
+			return;
+		}
+		if (g.kind === "link") {
+			setLink(null);
+			if (g.moved && g.from && onAddTransition) {
+				const rect = e.currentTarget.getBoundingClientRect();
+				const p = clientToSvg(e.clientX, e.clientY, rect, vb);
+				const target = hitNode(p.x, p.y);
+				if (target) {
+					onAddTransition(g.from, target);
+				}
+			}
+			return;
+		}
+		// 空白をパンせずクリックしただけなら状態を追加する。
+		if (editable && !g.moved && onAddState) {
+			onAddState();
+		}
 	};
+	const onPointerCancel = () => {
+		gesture.current = null;
+		setLink(null);
+	};
+	const linkFromPos = link ? (pos.get(link.from) ?? null) : null;
 
 	return (
 		<div className="relative h-full w-full">
@@ -270,6 +365,11 @@ export function AutomatonDiagram({
 				>
 					リセット
 				</button>
+				{editable && (
+					<span className="max-w-16 text-center text-[10px] text-gray-400 leading-tight">
+						空白クリック=状態 / ドラッグ=遷移
+					</span>
+				)}
 			</div>
 			<svg
 				ref={svgRef}
@@ -281,7 +381,8 @@ export function AutomatonDiagram({
 				onPointerDown={onPointerDown}
 				onPointerMove={onPointerMove}
 				onPointerUp={onPointerUp}
-				onPointerLeave={onPointerUp}
+				onPointerCancel={onPointerCancel}
+				onPointerLeave={onPointerCancel}
 			>
 				<title>状態遷移図</title>
 				<defs>
@@ -355,6 +456,20 @@ export function AutomatonDiagram({
 						</g>
 					);
 				})}
+
+				{/* 作図中の一時線(状態間ドラッグで遷移を作る) */}
+				{link && linkFromPos && (
+					<line
+						x1={linkFromPos.x}
+						y1={linkFromPos.y}
+						x2={link.x}
+						y2={link.y}
+						className="stroke-blue-400"
+						strokeWidth={2}
+						strokeDasharray="5 4"
+						markerEnd="url(#arrow-active)"
+					/>
+				)}
 
 				{/* 状態ノード */}
 				{states.map((st) => {

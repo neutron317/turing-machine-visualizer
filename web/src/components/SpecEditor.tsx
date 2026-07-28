@@ -1,193 +1,38 @@
-import { useEffect, useRef, useState } from "react";
-import {
-	type DFASpec,
-	type DTMSpec,
-	dfaSpecSchema,
-	dtmSpecSchema,
-} from "../contract/schemas.ts";
-import type { Machine } from "../fixtures/machines.ts";
-import type { Spec } from "../store/replay.ts";
+import { type Draft, deriveStates, deriveSymbols } from "./specDraft.ts";
 
-// 1 行分の編集状態。DFA は from/read/to、DTM は write/move も使う。
-interface Row {
-	from: string;
-	read: string;
-	to: string;
-	write: string;
-	move: "L" | "R";
-}
-
-function rowsFromMachine(machine: Machine): Row[] {
-	if (machine.kind === "dfa") {
-		return machine.spec.transitions.map((t) => ({
-			from: t.from,
-			read: t.read,
-			to: t.to,
-			write: "",
-			move: "R",
-		}));
-	}
-	return machine.spec.transitions.map((t) => ({
-		from: t.from,
-		read: t.read ?? "",
-		to: t.to,
-		write: t.write ?? "",
-		move: t.move,
-	}));
-}
-
-// カンマ区切りの入力を状態のリストへ(空白除去・空要素は捨てる)。
-function parseCsv(s: string): string[] {
-	return s
-		.split(",")
-		.map((x) => x.trim())
-		.filter((x) => x !== "");
-}
-
-// 未完成の行(from/to が空)を除いた遷移だけを対象にする。
-function completeRows(rows: Row[]): Row[] {
-	return rows.filter((r) => r.from !== "" && r.to !== "");
-}
-
-// 状態集合を導出する: 遷移が参照する from/to に加え、start・accept も含める
-// (遷移を持たない受理状態や新規状態も states に載るように)。
-function derivedStates(rows: Row[], start: string, accept: string[]): string[] {
-	const set = new Set<string>();
-	if (start !== "") {
-		set.add(start);
-	}
-	for (const s of accept) {
-		set.add(s);
-	}
-	for (const r of rows) {
-		if (r.from !== "") {
-			set.add(r.from);
-		}
-		if (r.to !== "") {
-			set.add(r.to);
-		}
-	}
-	return [...set];
-}
-
-// 使える記号(アルファベット/テープ記号)を遷移関数から自動導出する。
-// DFA は read、DTM は read と write の非空(空白 null は除く)を集める。
-function derivedSymbols(rows: Row[], isDfa: boolean): string[] {
-	const set = new Set<string>();
-	for (const r of completeRows(rows)) {
-		if (r.read !== "") {
-			set.add(r.read);
-		}
-		if (!isDfa && r.write !== "") {
-			set.add(r.write);
-		}
-	}
-	return [...set];
-}
-
-// 機械の定義(遷移・初期状態・受理状態)を編集するエディタ。変更のたびに妥当な
-// spec を組み立てて onSpecChange へライブで通知する(実行ボタンは無い)。states と
-// 使える記号(アルファベット/テープ記号)は遷移関数から自動導出し、読み取り専用で
-// 一覧表示する。未完成の行(from/to が空)は無視し、決定性違反や空の初期状態は
-// エラー表示にして通知しない。
+// 機械の定義(遷移・初期状態・受理状態)を編集する制御コンポーネント。編集状態は
+// App が draft として保持し、変更は onChange で通知する(App がライブに spec へ反映)。
+// states と 使える記号(アルファベット/テープ記号)は遷移関数から自動導出し、
+// 読み取り専用で一覧表示する。error は App から受け取り role="alert" で表示する。
 export function SpecEditor({
-	machine,
-	onSpecChange,
+	draft,
+	isDfa,
+	error,
+	onChange,
 }: {
-	machine: Machine;
-	onSpecChange: (spec: Spec) => void;
+	draft: Draft;
+	isDfa: boolean;
+	error: string | null;
+	onChange: (draft: Draft) => void;
 }) {
-	const isDfa = machine.kind === "dfa";
-	const [rows, setRows] = useState<Row[]>(() => rowsFromMachine(machine));
-	const [start, setStart] = useState(machine.spec.start);
-	const [accept, setAccept] = useState(machine.spec.accept.join(", "));
-	const [error, setError] = useState<string | null>(null);
+	const rows = draft.rows;
+	const states = deriveStates(draft);
+	const symbols = deriveSymbols(rows, isDfa);
 
-	const acceptList = parseCsv(accept);
-	const states = derivedStates(rows, start, acceptList);
-	const symbols = derivedSymbols(rows, isDfa);
-
-	// onSpecChange の識別子が変わってもライブ通知の effect を再実行させないよう ref 経由で呼ぶ。
-	const onSpecChangeRef = useRef(onSpecChange);
-	onSpecChangeRef.current = onSpecChange;
-
-	// 編集値が変わるたびに spec を組み立てて通知する(初回マウントは除く。初期状態は
-	// 呼び出し側が machine.spec から持っているため二重に流さない)。
-	const didMount = useRef(false);
-	useEffect(() => {
-		if (!didMount.current) {
-			didMount.current = true;
-			return;
-		}
-		if (start === "") {
-			setError("初期状態は必須です。");
-			return;
-		}
-		const complete = completeRows(rows);
-		const keys = new Set<string>();
-		for (const r of complete) {
-			const key = JSON.stringify([r.from, r.read]);
-			if (keys.has(key)) {
-				setError("同じ from と 読み記号 の組が重複しています(決定性)。");
-				return;
-			}
-			keys.add(key);
-		}
-		const accepts = parseCsv(accept);
-		const sts = derivedStates(complete, start, accepts);
-		const syms = derivedSymbols(complete, isDfa);
-		if (isDfa) {
-			const parsed = dfaSpecSchema.safeParse({
-				states: sts,
-				alphabet: syms,
-				start,
-				accept: accepts,
-				transitions: complete.map((r) => ({
-					from: r.from,
-					read: r.read,
-					to: r.to,
-				})),
-			});
-			if (!parsed.success) {
-				setError("読み記号は 1 文字にしてください。");
-				return;
-			}
-			setError(null);
-			onSpecChangeRef.current(parsed.data as DFASpec);
-			return;
-		}
-		const parsed = dtmSpecSchema.safeParse({
-			states: sts,
-			tapeAlphabet: syms,
-			start,
-			accept: accepts,
-			transitions: complete.map((r) => ({
-				from: r.from,
-				read: r.read === "" ? null : r.read,
-				to: r.to,
-				write: r.write === "" ? null : r.write,
-				move: r.move,
-			})),
+	const update = (i: number, patch: Partial<Draft["rows"][number]>) => {
+		onChange({
+			...draft,
+			rows: rows.map((r, j) => (j === i ? { ...r, ...patch } : r)),
 		});
-		if (!parsed.success) {
-			setError("読み/書き記号は 1 文字にしてください。");
-			return;
-		}
-		setError(null);
-		onSpecChangeRef.current(parsed.data as DTMSpec);
-	}, [rows, start, accept, isDfa]);
-
-	const update = (i: number, patch: Partial<Row>) => {
-		setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 	};
 	const addRow = () => {
-		setRows((rs) => [
-			...rs,
-			{ from: "", read: "", to: "", write: "", move: "R" },
-		]);
+		onChange({
+			...draft,
+			rows: [...rows, { from: "", read: "", to: "", write: "", move: "R" }],
+		});
 	};
 	const removeRow = (i: number) => {
-		setRows((rs) => rs.filter((_, j) => j !== i));
+		onChange({ ...draft, rows: rows.filter((_, j) => j !== i) });
 	};
 
 	const cell =
@@ -201,16 +46,16 @@ export function SpecEditor({
 					<span className="w-16 shrink-0 text-gray-500">初期状態</span>
 					<input
 						className={`${cell} flex-1`}
-						value={start}
-						onChange={(e) => setStart(e.target.value)}
+						value={draft.start}
+						onChange={(e) => onChange({ ...draft, start: e.target.value })}
 					/>
 				</label>
 				<label className="flex items-center gap-1">
 					<span className="w-16 shrink-0 text-gray-500">受理状態</span>
 					<input
 						className={`${cell} flex-1`}
-						value={accept}
-						onChange={(e) => setAccept(e.target.value)}
+						value={draft.accept}
+						onChange={(e) => onChange({ ...draft, accept: e.target.value })}
 						placeholder="カンマ区切り"
 					/>
 				</label>
