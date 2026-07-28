@@ -23,4 +23,16 @@ describe("AutomatonDiagram", () => {
 		// Even──a──▶Odd と Odd──a──▶Even の 2 本にラベル "a"。
 		expect(getAllByText("a").length).toBeGreaterThan(0);
 	});
+
+	it("DTM spec を描く(read/write,move ラベル・blank␣・現在状態)", () => {
+		const dtmSpec = machines[1].spec; // anbncn
+		const { container, getAllByText } = render(
+			<AutomatonDiagram spec={dtmSpec} current="P1" />,
+		);
+		expect(getAllByText("PA").length).toBeGreaterThan(0);
+		// DTM の遷移ラベルは read/write,move。P0→PA は ␣/␣,R。
+		expect(container.textContent).toContain("␣/␣,R");
+		const active = container.querySelector('[data-active="true"]');
+		expect(active?.getAttribute("data-state")).toBe("P1");
+	});
 });
