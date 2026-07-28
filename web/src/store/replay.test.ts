@@ -43,6 +43,13 @@ describe("replay ストア", () => {
 			state: "Even",
 			rest: ["a", "a"],
 		});
+		// 各コマに status / fired が正しく載る(先頭は running・fired=null)。
+		expect(s.frames[0]?.status).toBe("running");
+		expect(s.frames[0]?.fired).toBeNull();
+		expect(s.frames[1]?.status).toBe("running");
+		expect(s.frames[1]?.fired).toEqual({ from: "Even", read: "a", to: "Odd" });
+		expect(s.frames[3]?.status).toBe("accept");
+		expect(s.frames[3]?.fired).toBeNull();
 	});
 
 	it("前進・後退がコマ内で動く", () => {
@@ -95,5 +102,25 @@ describe("replay ストア", () => {
 		expect(useReplayStore.getState().playing).toBe(false);
 		st.setSpeed(5);
 		expect(useReplayStore.getState().speed).toBe(5);
+	});
+
+	it("終端から play() すると先頭に戻して再生する", () => {
+		const st = useReplayStore.getState();
+		st.load(trace);
+		for (let i = 0; i < 10; i++) {
+			st.stepForward();
+		}
+		expect(useReplayStore.getState().cursor).toBe(3);
+		st.play();
+		const s = useReplayStore.getState();
+		expect(s.cursor).toBe(0);
+		expect(s.playing).toBe(true);
+	});
+
+	it("未 load(コマなし)で play() しても再生に入らない", () => {
+		useReplayStore.getState().play();
+		const s = useReplayStore.getState();
+		expect(s.frames).toHaveLength(0);
+		expect(s.playing).toBe(false);
 	});
 });

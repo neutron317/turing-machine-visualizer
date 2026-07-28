@@ -81,6 +81,9 @@ export const useReplayStore = create<ReplayState>()((set, get) => ({
 	reset: () => set({ cursor: 0, playing: false }),
 	play: () => {
 		const { cursor, frames } = get();
+		if (frames.length === 0) {
+			return; // 未 load。再生状態に入らない。
+		}
 		// 終端から再生した場合は先頭へ戻す(でないと即停止してしまう)。
 		set(
 			cursor >= frames.length - 1
