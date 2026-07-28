@@ -74,8 +74,13 @@ export function TraceHistory({
 					<button
 						type="button"
 						onClick={() => onSelect(i)}
+						aria-current={i === current ? "step" : undefined}
 						className={`flex w-full items-baseline gap-1 rounded px-1 text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${
-							i === current ? "bg-blue-100 dark:bg-blue-900/50" : ""
+							// 現在行。状態チップ(bg-blue-100)と同色で埋もれないようリングで示し、
+							// 強制カラー環境でも aria-current で現在位置が伝わるようにする。
+							i === current
+								? "bg-blue-50 ring-1 ring-blue-400 ring-inset dark:bg-blue-900/40 dark:ring-blue-500"
+								: ""
 						}`}
 					>
 						<span className="inline-block w-3 shrink-0 text-gray-400">

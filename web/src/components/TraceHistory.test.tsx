@@ -32,6 +32,18 @@ describe("TraceHistory", () => {
 		expect(container.querySelector(".text-red-600")?.textContent).toBe("a");
 	});
 
+	it("現在行だけ aria-current=step を付ける(色以外の手掛かり)", () => {
+		const { getAllByRole } = render(
+			<TraceHistory frames={frames} current={1} onSelect={() => {}} />,
+		);
+		const rows = getAllByRole("button");
+		expect(rows.map((r) => r.getAttribute("aria-current"))).toEqual([
+			null,
+			"step",
+			null,
+		]);
+	});
+
 	it("行をクリックするとその index で onSelect が呼ばれる", () => {
 		const onSelect = vi.fn();
 		const { getAllByRole } = render(

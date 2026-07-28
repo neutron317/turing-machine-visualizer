@@ -224,17 +224,21 @@ export default function App() {
 			{/* 遷移履歴(右ドロワー)。下端はテープ帯の上で止め(bottomInset)、z を
 			    下部帯より下(z-10)にしてテープの描画を優先する。 */}
 			{frame && historyOpen && (
-				<div
+				<section
 					className="absolute top-0 right-0 z-10 flex flex-col border-gray-200 border-l bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90"
 					style={{ width: HISTORY_W, bottom: bottomInset }}
+					aria-labelledby="history-heading"
 				>
-					<div className="border-gray-200 border-b px-3 py-2 text-gray-500 text-xs dark:border-gray-700">
+					<h2
+						id="history-heading"
+						className="border-gray-200 border-b px-3 py-2 font-medium text-gray-600 text-xs dark:border-gray-700 dark:text-gray-300"
+					>
 						遷移履歴(⊢。行をクリックでその状態へ)
-					</div>
+					</h2>
 					<div className="flex-1 overflow-y-auto px-3 py-2">
 						<TraceHistory frames={frames} current={cursor} onSelect={goto} />
 					</div>
-				</div>
+				</section>
 			)}
 		</main>
 	);
