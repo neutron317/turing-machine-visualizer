@@ -12,8 +12,10 @@ interface Point {
 }
 
 const R_NODE = 22;
-// キャンバス(viewBox)の一辺。機械が変わってもこの値を一定に保つことで、
-// ノードの表示サイズが DFA/DTM で揃う(状態数やラベル長に依らない)。
+// ノード間に確保する最小のすき間(重なり防止)。
+const NODE_GAP = 18;
+// キャンバス(viewBox)の基準の一辺。少数状態ではこの一定値を使い、DFA/DTM で
+// ノードの表示サイズを揃える。状態が多いときは重ならないよう自動的に広げる。
 const DIAGRAM_SIZE = 640;
 
 // A→B の曲線(両端はノード境界)。矢印は marker-end で終端に付く。
@@ -110,9 +112,11 @@ export function AutomatonDiagram({
 	// ラベル(自己ループ含む)がキャンバス外へはみ出して切れないようにする。
 	const maxLabelLen = edges.reduce((m, e) => Math.max(m, e.label.length), 0);
 	const margin = 60 + (maxLabelLen * 6.6) / 2;
-	// キャンバスは常に一定サイズ。状態を並べる円の半径 R をここから逆算し、
-	// ラベル余白を確保しつつ収める(こうするとノードの表示 px が機械間で揃う)。
-	const size = DIAGRAM_SIZE;
+	// 状態数に応じてキャンバスを広げる。N 個のノードが重ならない円周から必要半径を
+	// 求め、基準サイズ(少数なら一定=DFA/DTM で揃う)と大きい方を採る。半径 R は
+	// キャンバスからラベル余白を差し引いて逆算する。
+	const ringR = n <= 1 ? 0 : (n * (2 * R_NODE + NODE_GAP)) / (2 * Math.PI);
+	const size = Math.max(DIAGRAM_SIZE, 2 * (ringR + R_NODE + margin));
 	const c = size / 2;
 	const R = Math.max(40, c - R_NODE - margin);
 
@@ -181,6 +185,12 @@ export function AutomatonDiagram({
 	const reset = () => setVb({ x: 0, y: 0, w: size, h: size });
 	const scale = size / vb.w;
 
+	// size(状態数・ラベル長)が変わったらキャンバス全体へフィットし直す
+	// (状態が増減しても切れずに収まるように)。
+	useEffect(() => {
+		setVb({ x: 0, y: 0, w: size, h: size });
+	}, [size]);
+
 	// ホイールでカーソル位置基準にズーム(ページスクロールを止めるため非 passive)。
 	useEffect(() => {
 		const svg = svgRef.current;
@@ -209,8 +219,8 @@ export function AutomatonDiagram({
 		};
 		svg.addEventListener("wheel", onWheel, { passive: false });
 		return () => svg.removeEventListener("wheel", onWheel);
-		// size は定数(DIAGRAM_SIZE)なのでリスナは一度だけ張れば十分。
-	}, []);
+		// size が変わるとズーム上下限も変わるので張り直す。
+	}, [size]);
 
 	const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
 		const rect = e.currentTarget.getBoundingClientRect();

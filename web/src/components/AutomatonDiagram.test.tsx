@@ -118,6 +118,24 @@ describe("AutomatonDiagram", () => {
 		);
 	});
 
+	it("状態が多いとキャンバス(viewBox)を広げて詰まらないようにする", () => {
+		// 少数(even-a: 2状態)は基準の 640。
+		const { container: few } = render(
+			<AutomatonDiagram graph={dfaGraph} current="Even" />,
+		);
+		expect(vbWidth(few.querySelector("svg"))).toBe(640);
+		// 多数(30状態)は 640 より広がる。
+		const states = Array.from({ length: 30 }, (_, i) => `s${i}`);
+		const many = draftGraph(
+			{ states, start: "s0", accept: [], rows: [] },
+			true,
+		);
+		const { container: big } = render(
+			<AutomatonDiagram graph={many} current="s0" />,
+		);
+		expect(vbWidth(big.querySelector("svg"))).toBeGreaterThan(640);
+	});
+
 	it("編集: ノード間ドラッグで遷移を追加する", () => {
 		const onAddTransition = vi.fn();
 		const graph = draftGraph(
