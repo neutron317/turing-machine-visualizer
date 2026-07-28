@@ -12,8 +12,10 @@ interface Point {
 }
 
 const R_NODE = 22;
-// キャンバス(viewBox)の一辺。機械が変わってもこの値を一定に保つことで、
-// ノードの表示サイズが DFA/DTM で揃う(状態数やラベル長に依らない)。
+// ノード間に確保する最小のすき間(重なり防止)。
+const NODE_GAP = 18;
+// キャンバス(viewBox)の基準の一辺。少数状態ではこの一定値を使い、DFA/DTM で
+// ノードの表示サイズを揃える。状態が多いときは重ならないよう自動的に広げる。
 const DIAGRAM_SIZE = 640;
 
 // A→B の曲線(両端はノード境界)。矢印は marker-end で終端に付く。
@@ -110,9 +112,11 @@ export function AutomatonDiagram({
 	// ラベル(自己ループ含む)がキャンバス外へはみ出して切れないようにする。
 	const maxLabelLen = edges.reduce((m, e) => Math.max(m, e.label.length), 0);
 	const margin = 60 + (maxLabelLen * 6.6) / 2;
-	// キャンバスは常に一定サイズ。状態を並べる円の半径 R をここから逆算し、
-	// ラベル余白を確保しつつ収める(こうするとノードの表示 px が機械間で揃う)。
-	const size = DIAGRAM_SIZE;
+	// 状態数に応じてキャンバスを広げる。N 個のノードが重ならない円周から必要半径を
+	// 求め、基準サイズ(少数なら一定=DFA/DTM で揃う)と大きい方を採る。半径 R は
+	// キャンバスからラベル余白を差し引いて逆算する。
+	const ringR = n <= 1 ? 0 : (n * (2 * R_NODE + NODE_GAP)) / (2 * Math.PI);
+	const size = Math.max(DIAGRAM_SIZE, 2 * (ringR + R_NODE + margin));
 	const c = size / 2;
 	const R = Math.max(40, c - R_NODE - margin);
 
@@ -181,6 +185,16 @@ export function AutomatonDiagram({
 	const reset = () => setVb({ x: 0, y: 0, w: size, h: size });
 	const scale = size / vb.w;
 
+	// 状態数(n)が変わったらキャンバス全体へフィットし直す(ノード配置が変わって
+	// 切れないように)。ラベル長だけの変化(size は動くがノードは動かない)では
+	// フィットせず、ユーザーのズーム/パン視点を保つ。size は ref 経由で最新を読む。
+	const sizeRef = useRef(size);
+	sizeRef.current = size;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: n(状態数)の変化だけを再フィットのトリガにする。値は sizeRef で最新 size を読む(ラベル長だけの size 変化では視点を保つ)。
+	useEffect(() => {
+		setVb({ x: 0, y: 0, w: sizeRef.current, h: sizeRef.current });
+	}, [n]);
+
 	// ホイールでカーソル位置基準にズーム(ページスクロールを止めるため非 passive)。
 	useEffect(() => {
 		const svg = svgRef.current;
@@ -192,7 +206,8 @@ export function AutomatonDiagram({
 			const rect = svg.getBoundingClientRect();
 			const factor = e.deltaY > 0 ? 1.1 : 1 / 1.1;
 			setVb((v) => {
-				const nw = Math.min(Math.max(v.w * factor, size / 4), size * 2);
+				const lim = sizeRef.current;
+				const nw = Math.min(Math.max(v.w * factor, lim / 4), lim * 2);
 				// letterbox(meet)を考慮してカーソル直下の viewBox 座標を固定する。
 				const s = Math.min(rect.width / v.w, rect.height / v.h);
 				const px =
@@ -209,7 +224,7 @@ export function AutomatonDiagram({
 		};
 		svg.addEventListener("wheel", onWheel, { passive: false });
 		return () => svg.removeEventListener("wheel", onWheel);
-		// size は定数(DIAGRAM_SIZE)なのでリスナは一度だけ張れば十分。
+		// ズーム上下限は sizeRef 経由で最新 size を読むのでリスナは一度張れば十分。
 	}, []);
 
 	const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {

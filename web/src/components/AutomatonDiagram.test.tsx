@@ -102,7 +102,7 @@ describe("AutomatonDiagram", () => {
 		);
 	});
 
-	it("キャンバスは機械に依らず一定サイズ(DFA/DTM でノード表示を統一)", () => {
+	it("少数状態では DFA/DTM でキャンバスサイズを揃える(共に 640)", () => {
 		const dtmGraph = draftGraph(draftFromMachine(machines[1]), false);
 		const { container: dfa } = render(
 			<AutomatonDiagram graph={dfaGraph} current="Even" />,
@@ -116,6 +116,47 @@ describe("AutomatonDiagram", () => {
 		expect(dtm.querySelector("svg")?.getAttribute("viewBox")).toBe(
 			"0 0 640 640",
 		);
+	});
+
+	it("状態が多いとキャンバス(viewBox)を広げて詰まらないようにする", () => {
+		// 少数(even-a: 2状態)は基準の 640。
+		const { container: few } = render(
+			<AutomatonDiagram graph={dfaGraph} current="Even" />,
+		);
+		expect(vbWidth(few.querySelector("svg"))).toBe(640);
+		// 多数(30状態)は 640 より広がる。
+		const states = Array.from({ length: 30 }, (_, i) => `s${i}`);
+		const many = draftGraph(
+			{ states, start: "s0", accept: [], rows: [] },
+			true,
+		);
+		const { container: big } = render(
+			<AutomatonDiagram graph={many} current="s0" />,
+		);
+		expect(vbWidth(big.querySelector("svg"))).toBeGreaterThan(640);
+	});
+
+	it("状態数が変わったら viewBox を再フィットする(切れない)", () => {
+		const few = draftGraph(
+			{ states: ["A", "B"], start: "A", accept: [], rows: [] },
+			true,
+		);
+		const many = draftGraph(
+			{
+				states: Array.from({ length: 30 }, (_, i) => `s${i}`),
+				start: "s0",
+				accept: [],
+				rows: [],
+			},
+			true,
+		);
+		const { container, rerender } = render(
+			<AutomatonDiagram graph={few} current="A" />,
+		);
+		expect(vbWidth(container.querySelector("svg"))).toBe(640);
+		// 同一コンポーネントのまま状態数を増やす → 再フィット effect で viewBox が広がる。
+		rerender(<AutomatonDiagram graph={many} current="s0" />);
+		expect(vbWidth(container.querySelector("svg"))).toBeGreaterThan(640);
 	});
 
 	it("編集: ノード間ドラッグで遷移を追加する", () => {
