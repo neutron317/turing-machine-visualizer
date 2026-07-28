@@ -34,4 +34,24 @@ describe("ConfigView", () => {
 		expect(screen.getByText(/テープ/)).toBeInTheDocument();
 		expect(screen.getAllByText("␣").length).toBeGreaterThan(0);
 	});
+
+	it("DTM の fired 遷移を read/write,move で表示する", () => {
+		const frame: Frame = {
+			config: { state: "P1", left: ["X"], head: "b", right: ["c"] },
+			status: "running",
+			fired: { from: "P0", read: "a", to: "P1", write: "X", move: "R" },
+		};
+		render(<ConfigView frame={frame} />);
+		expect(screen.getByText(/P0 ──a\/X,R──▶ P1/)).toBeInTheDocument();
+	});
+
+	it("DTM の fired で blank(null)は ␣ として表示する", () => {
+		const frame: Frame = {
+			config: { state: "PA", left: [], head: null, right: [] },
+			status: "running",
+			fired: { from: "P4", read: null, to: "PA", write: null, move: "R" },
+		};
+		render(<ConfigView frame={frame} />);
+		expect(screen.getByText(/P4 ──␣\/␣,R──▶ PA/)).toBeInTheDocument();
+	});
 });
