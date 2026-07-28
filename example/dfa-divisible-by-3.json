@@ -1,0 +1,53 @@
+{
+  "v": 1,
+  "kind": "dfa",
+  "label": "DFA: 2進数が3の倍数",
+  "input": "110",
+  "spec": {
+    "states": [
+      "r0",
+      "r1",
+      "r2"
+    ],
+    "alphabet": [
+      "0",
+      "1"
+    ],
+    "start": "r0",
+    "accept": [
+      "r0"
+    ],
+    "transitions": [
+      {
+        "from": "r0",
+        "read": "0",
+        "to": "r0"
+      },
+      {
+        "from": "r0",
+        "read": "1",
+        "to": "r1"
+      },
+      {
+        "from": "r1",
+        "read": "0",
+        "to": "r2"
+      },
+      {
+        "from": "r1",
+        "read": "1",
+        "to": "r0"
+      },
+      {
+        "from": "r2",
+        "read": "0",
+        "to": "r1"
+      },
+      {
+        "from": "r2",
+        "read": "1",
+        "to": "r2"
+      }
+    ]
+  }
+}

@@ -1,0 +1,184 @@
+{
+  "v": 1,
+  "kind": "dtm",
+  "label": "DTM: 回文(palindrome)",
+  "input": "abba",
+  "spec": {
+    "states": [
+      "fL",
+      "fRa",
+      "fRb",
+      "cRa",
+      "cRb",
+      "ret",
+      "ACCEPT",
+      "REJECT"
+    ],
+    "tapeAlphabet": [
+      "a",
+      "b",
+      "x",
+      "y"
+    ],
+    "start": "fL",
+    "accept": [
+      "ACCEPT"
+    ],
+    "transitions": [
+      {
+        "from": "fL",
+        "read": "x",
+        "to": "fL",
+        "write": "x",
+        "move": "R"
+      },
+      {
+        "from": "fL",
+        "read": "a",
+        "to": "fRa",
+        "write": "x",
+        "move": "R"
+      },
+      {
+        "from": "fL",
+        "read": "b",
+        "to": "fRb",
+        "write": "x",
+        "move": "R"
+      },
+      {
+        "from": "fL",
+        "read": "y",
+        "to": "ACCEPT",
+        "write": "y",
+        "move": "R"
+      },
+      {
+        "from": "fL",
+        "read": null,
+        "to": "ACCEPT",
+        "write": null,
+        "move": "R"
+      },
+      {
+        "from": "fRa",
+        "read": "a",
+        "to": "fRa",
+        "write": "a",
+        "move": "R"
+      },
+      {
+        "from": "fRa",
+        "read": "b",
+        "to": "fRa",
+        "write": "b",
+        "move": "R"
+      },
+      {
+        "from": "fRa",
+        "read": "y",
+        "to": "cRa",
+        "write": "y",
+        "move": "L"
+      },
+      {
+        "from": "fRa",
+        "read": null,
+        "to": "cRa",
+        "write": null,
+        "move": "L"
+      },
+      {
+        "from": "fRb",
+        "read": "a",
+        "to": "fRb",
+        "write": "a",
+        "move": "R"
+      },
+      {
+        "from": "fRb",
+        "read": "b",
+        "to": "fRb",
+        "write": "b",
+        "move": "R"
+      },
+      {
+        "from": "fRb",
+        "read": "y",
+        "to": "cRb",
+        "write": "y",
+        "move": "L"
+      },
+      {
+        "from": "fRb",
+        "read": null,
+        "to": "cRb",
+        "write": null,
+        "move": "L"
+      },
+      {
+        "from": "cRa",
+        "read": "a",
+        "to": "ret",
+        "write": "y",
+        "move": "L"
+      },
+      {
+        "from": "cRa",
+        "read": "b",
+        "to": "REJECT",
+        "write": "b",
+        "move": "L"
+      },
+      {
+        "from": "cRa",
+        "read": "x",
+        "to": "ACCEPT",
+        "write": "x",
+        "move": "R"
+      },
+      {
+        "from": "cRb",
+        "read": "b",
+        "to": "ret",
+        "write": "y",
+        "move": "L"
+      },
+      {
+        "from": "cRb",
+        "read": "a",
+        "to": "REJECT",
+        "write": "a",
+        "move": "L"
+      },
+      {
+        "from": "cRb",
+        "read": "x",
+        "to": "ACCEPT",
+        "write": "x",
+        "move": "R"
+      },
+      {
+        "from": "ret",
+        "read": "a",
+        "to": "ret",
+        "write": "a",
+        "move": "L"
+      },
+      {
+        "from": "ret",
+        "read": "b",
+        "to": "ret",
+        "write": "b",
+        "move": "L"
+      },
+      {
+        "from": "ret",
+        "read": "x",
+        "to": "fL",
+        "write": "x",
+        "move": "R"
+      }
+    ]
+  }
+}
