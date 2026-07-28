@@ -1,5 +1,6 @@
-// テープの右側パディング(半無限テープを空セルで示唆する)。
-const BLANK_PAD = 3;
+// テープの右側パディング。半無限テープを示すため右へ大きく伸ばす。
+// 親幅を超えた分は下の overflow-x-auto で左右スクロールしてたどれる。
+const BLANK_PAD = 60;
 
 function glyph(cell: string | null): string {
 	return cell === null ? "␣" : cell;
@@ -27,7 +28,7 @@ export function Tape({
 	return (
 		<div className="mt-3">
 			<div className="text-sm text-gray-500">テープ(▼ = ヘッド)</div>
-			<div className="mt-1 overflow-x-auto pb-1">
+			<div className="mt-1 overflow-x-auto pb-3">
 				<div className="inline-block">
 					{/* ヘッドポインタ(セル帯と同じ 1px 分だけ内側に寄せて列を揃える) */}
 					<div className="flex border border-transparent">

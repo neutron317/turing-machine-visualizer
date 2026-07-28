@@ -40,15 +40,32 @@ describe("AutomatonDiagram", () => {
 		expect(active?.getAttribute("data-state")).toBe("P1");
 	});
 
-	it("拡大ボタンで viewBox が狭まり、リセットで戻る", () => {
+	it("発火した遷移の矢印を強調する(data-fired + 専用マーカー)", () => {
+		const { container } = render(
+			<AutomatonDiagram
+				spec={dfaSpec}
+				current="Odd"
+				fired={{ from: "Even", to: "Odd" }}
+			/>,
+		);
+		const firedEdges = container.querySelectorAll('[data-fired="true"]');
+		expect(firedEdges.length).toBe(1);
+		expect(
+			firedEdges[0]?.querySelector("path")?.getAttribute("marker-end"),
+		).toContain("arrow-active");
+	});
+
+	it("ズームスライダーで viewBox が狭まり、リセットで戻る", () => {
 		const { container, getByRole } = render(
 			<AutomatonDiagram spec={dfaSpec} current="Even" />,
 		);
 		const svg = container.querySelector("svg");
 		const initial = svg?.getAttribute("viewBox");
 		const w0 = vbWidth(svg);
-		fireEvent.click(getByRole("button", { name: "拡大" }));
-		expect(vbWidth(svg)).toBeLessThan(w0); // 拡大で viewBox 幅が縮む
+		fireEvent.change(getByRole("slider", { name: "ズーム" }), {
+			target: { value: "2" },
+		});
+		expect(vbWidth(svg)).toBeLessThan(w0); // 2x 拡大で viewBox 幅が縮む
 		fireEvent.click(getByRole("button", { name: "リセット" }));
 		expect(svg?.getAttribute("viewBox")).toBe(initial);
 	});

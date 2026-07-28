@@ -114,11 +114,14 @@ function selfLoop(p: Point, c: number): { d: string; lx: number; ly: number } {
 export function AutomatonDiagram({
 	spec,
 	current,
+	fired,
 }: {
 	spec: DFASpec | DTMSpec;
 	current: string;
+	fired?: { from: string; to: string } | null;
 }) {
 	const { states, accept, start, edges } = toGraph(spec);
+	const firedKey = fired ? JSON.stringify([fired.from, fired.to]) : null;
 	const n = states.length;
 	const R = 46 + 20 * n;
 	// ラベル幅(11px monospace ≈ 6.6px/字)を余白に織り込み、側方ノードのまとめ
@@ -156,19 +159,17 @@ export function AutomatonDiagram({
 	const [vb, setVb] = useState(() => ({ x: 0, y: 0, w: size, h: size }));
 	const dragRef = useRef<{ x: number; y: number } | null>(null);
 
-	// (fx,fy)(相対位置 0..1)を固定したままズームする。factor<1 で拡大。
-	const zoomAt = (factor: number, fx: number, fy: number) => {
+	// スケール(1=フィット, >1=拡大)へ、現在の中心を保ってズームする。
+	const zoomTo = (scale: number) => {
 		setVb((v) => {
-			const nw = Math.min(Math.max(v.w * factor, size / 4), size * 2);
-			return {
-				x: v.x + fx * (v.w - nw),
-				y: v.y + fy * (v.h - nw),
-				w: nw,
-				h: nw,
-			};
+			const nw = Math.min(Math.max(size / scale, size / 4), size * 2);
+			const cx = v.x + v.w / 2;
+			const cy = v.y + v.h / 2;
+			return { x: cx - nw / 2, y: cy - nw / 2, w: nw, h: nw };
 		});
 	};
 	const reset = () => setVb({ x: 0, y: 0, w: size, h: size });
+	const scale = size / vb.w;
 
 	// ホイールでカーソル位置基準にズーム(ページスクロールを止めるため非 passive)。
 	useEffect(() => {
@@ -180,13 +181,17 @@ export function AutomatonDiagram({
 			e.preventDefault();
 			const rect = svg.getBoundingClientRect();
 			const factor = e.deltaY > 0 ? 1.1 : 1 / 1.1;
-			const fx = (e.clientX - rect.left) / rect.width;
-			const fy = (e.clientY - rect.top) / rect.height;
 			setVb((v) => {
 				const nw = Math.min(Math.max(v.w * factor, size / 4), size * 2);
+				// letterbox(meet)を考慮してカーソル直下の viewBox 座標を固定する。
+				const s = Math.min(rect.width / v.w, rect.height / v.h);
+				const px =
+					v.x + (e.clientX - rect.left - (rect.width - v.w * s) / 2) / s;
+				const py =
+					v.y + (e.clientY - rect.top - (rect.height - v.h * s) / 2) / s;
 				return {
-					x: v.x + fx * (v.w - nw),
-					y: v.y + fy * (v.h - nw),
+					x: px - ((px - v.x) / v.w) * nw,
+					y: py - ((py - v.y) / v.h) * nw,
 					w: nw,
 					h: nw,
 				};
@@ -205,8 +210,11 @@ export function AutomatonDiagram({
 			return;
 		}
 		const rect = e.currentTarget.getBoundingClientRect();
-		const dx = ((e.clientX - dragRef.current.x) / rect.width) * vb.w;
-		const dy = ((e.clientY - dragRef.current.y) / rect.height) * vb.h;
+		// preserveAspectRatio="meet" の実効スケールは幅・高さの小さい方で決まる。
+		// これを使わないと横方向のパンがカーソルに追従せず鈍く感じる。
+		const s = Math.min(rect.width / vb.w, rect.height / vb.h);
+		const dx = (e.clientX - dragRef.current.x) / s;
+		const dy = (e.clientY - dragRef.current.y) / s;
 		dragRef.current = { x: e.clientX, y: e.clientY };
 		setVb((v) => ({ ...v, x: v.x - dx, y: v.y - dy }));
 	};
@@ -214,36 +222,33 @@ export function AutomatonDiagram({
 		dragRef.current = null;
 	};
 
-	const btn =
-		"rounded border border-gray-300 bg-white/80 px-2 py-0.5 text-sm hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800/80 dark:hover:bg-gray-700";
-
 	return (
-		<div className="relative">
-			<div className="absolute top-1 right-1 z-10 flex gap-1">
+		<div className="relative h-full w-full">
+			<div className="absolute top-2 right-2 z-10 flex items-center gap-2 rounded border border-gray-300 bg-white/80 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800/80">
+				<span className="text-gray-500 text-xs">ズーム</span>
+				<input
+					type="range"
+					aria-label="ズーム"
+					min={0.5}
+					max={4}
+					step={0.1}
+					value={scale}
+					onChange={(e) => zoomTo(Number(e.target.value))}
+					className="w-28"
+				/>
 				<button
 					type="button"
-					aria-label="縮小"
-					className={btn}
-					onClick={() => zoomAt(1.3, 0.5, 0.5)}
+					className="rounded px-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700"
+					onClick={reset}
 				>
-					−
-				</button>
-				<button
-					type="button"
-					aria-label="拡大"
-					className={btn}
-					onClick={() => zoomAt(1 / 1.3, 0.5, 0.5)}
-				>
-					＋
-				</button>
-				<button type="button" className={btn} onClick={reset}>
 					リセット
 				</button>
 			</div>
 			<svg
 				ref={svgRef}
 				viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
-				className="mx-auto h-auto w-full max-w-md touch-none cursor-grab text-gray-400 active:cursor-grabbing dark:text-gray-500"
+				preserveAspectRatio="xMidYMid meet"
+				className="h-full w-full touch-none cursor-grab text-gray-400 active:cursor-grabbing dark:text-gray-500"
 				role="img"
 				aria-label="状態遷移図"
 				onPointerDown={onPointerDown}
@@ -263,6 +268,17 @@ export function AutomatonDiagram({
 						orient="auto-start-reverse"
 					>
 						<path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+					</marker>
+					<marker
+						id="arrow-active"
+						viewBox="0 0 10 10"
+						refX="9"
+						refY="5"
+						markerWidth="7"
+						markerHeight="7"
+						orient="auto-start-reverse"
+					>
+						<path d="M 0 0 L 10 5 L 0 10 z" className="fill-blue-500" />
 					</marker>
 				</defs>
 
@@ -285,21 +301,27 @@ export function AutomatonDiagram({
 						return null;
 					}
 					const geo = e.from === e.to ? selfLoop(a, c) : curve(a, b);
+					const isFired = JSON.stringify([e.from, e.to]) === firedKey;
 					return (
-						<g key={JSON.stringify([e.from, e.to])}>
+						<g key={JSON.stringify([e.from, e.to])} data-fired={isFired}>
 							<path
 								d={geo.d}
 								fill="none"
 								stroke="currentColor"
-								strokeWidth={1.5}
-								markerEnd="url(#arrow)"
+								className={isFired ? "stroke-blue-500" : undefined}
+								strokeWidth={isFired ? 2.5 : 1.5}
+								markerEnd={isFired ? "url(#arrow-active)" : "url(#arrow)"}
 							/>
 							<text
 								x={geo.lx}
 								y={geo.ly}
 								textAnchor="middle"
 								dominantBaseline="middle"
-								className="fill-gray-600 font-mono text-[11px] dark:fill-gray-300"
+								className={
+									isFired
+										? "fill-blue-600 font-bold font-mono text-[11px] dark:fill-blue-300"
+										: "fill-gray-600 font-mono text-[11px] dark:fill-gray-300"
+								}
 							>
 								{e.label}
 							</text>
