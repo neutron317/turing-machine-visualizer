@@ -118,6 +118,33 @@ describe("App(再生 UI)", () => {
 		useReplayStore.getState().pause();
 	});
 
+	it("入力を変えずに再生すると現在位置から継続する(作り直さない)", async () => {
+		render(<App />);
+		fireEvent.click(screen.getByRole("button", { name: /進む/ }));
+		expect(await screen.findByText("2 / 2")).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "再生" }));
+		// 入力未変更 → フレームを作り直さず位置(2/2)を保つ(1/1 に戻らない)。
+		expect(screen.getByText("2 / 2")).toBeInTheDocument();
+		expect(useReplayStore.getState().frames.length).toBe(2);
+		// 後片付け: 自動再生を止める。
+		useReplayStore.getState().pause();
+	});
+
+	it("ウィンドウを縮小すると操作板が画面内へクランプされる", () => {
+		render(<App />);
+		const heading = screen.getByRole("heading", {
+			name: "Turing Machine Visualizer",
+		});
+		// 操作板 = 見出しを含む外側の絶対配置 div。
+		const panel = heading.closest("div.absolute") as HTMLElement;
+		// 幅を PANEL_W(240)より狭くして resize → left は innerWidth-240 へ寄る。
+		window.innerWidth = 300;
+		fireEvent(window, new Event("resize"));
+		expect(panel.style.left).toBe("60px"); // 300 - 240
+		// 後片付け: jsdom 既定幅へ戻す。
+		window.innerWidth = 1024;
+	});
+
 	it("機械を切り替えると状態図と現在状態が切り替わる", async () => {
 		const { container } = render(<App />);
 		const activeState = () =>

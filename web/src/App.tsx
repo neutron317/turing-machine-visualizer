@@ -22,7 +22,7 @@ import {
 const SPEEDS = [1, 2, 4, 8];
 // 遷移履歴ドロワーの幅(px)。状態図の操作クラスタはこの分だけ左へ寄せる。
 const HISTORY_W = 288;
-// 左固定パネル(遷移表エディタ)の幅(px)。
+// 左固定パネル(遷移関数エディタ)の幅(px)。
 const EDITOR_W = 288;
 const PANEL =
 	"rounded-lg border border-gray-200 bg-white/90 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-800/90";
@@ -30,7 +30,7 @@ const CTRL =
 	"rounded border border-gray-300 px-2 py-1 text-sm disabled:opacity-40 dark:border-gray-600 dark:hover:bg-gray-700";
 // 移動可能な操作板の幅(px。w-60 と一致)。ドラッグ/初期位置のクランプに使う。
 const PANEL_W = 240;
-// 左右のサイドパネル(遷移表エディタ / 遷移履歴)の共通外殻。side ごとに
+// 左右のサイドパネル(遷移関数エディタ / 遷移履歴)の共通外殻。side ごとに
 // `left-0 border-r` / `right-0 border-l` を付け足す。
 const SIDE_PANEL =
 	"absolute top-0 z-10 flex flex-col border-gray-200 bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90";
@@ -90,7 +90,7 @@ export default function App() {
 		runInputRef.current = m.input;
 	};
 
-	// 指定の spec を現在の入力で実行する(入力欄・遷移表エディタの両方から使う)。
+	// 指定の spec を現在の入力で実行する(入力欄・遷移関数エディタの両方から使う)。
 	const runSpec = (spec: Spec) => {
 		const initial =
 			machine.kind === "dfa"
@@ -113,9 +113,11 @@ export default function App() {
 		play();
 	};
 
-	// 操作板の位置(ドラッグで移動可)。既定は左固定パネルと重ならない位置だが、
-	// 狭い画面で画面外に出て掴めなくならないよう初期値もクランプする。
-	const [panelPos, setPanelPos] = useState(() => clampPanel(EDITOR_W + 24, 12));
+	// 操作板の位置(ドラッグで移動可)。既定は左固定エディタと右上の操作クラスタを
+	// 避け、エディタ右端〜画面右端の中央へ置く(狭い画面では clampPanel が内へ寄せる)。
+	const [panelPos, setPanelPos] = useState(() =>
+		clampPanel((EDITOR_W + window.innerWidth - PANEL_W) / 2, 12),
+	);
 	const panelDrag = useRef<{ dx: number; dy: number } | null>(null);
 	const onPanelDown = (e: ReactPointerEvent<HTMLDivElement>) => {
 		panelDrag.current = {
@@ -223,8 +225,8 @@ export default function App() {
 
 			{/* 操作板(機械選択・ドラッグで移動可) */}
 			<div
-				className={`absolute z-20 w-60 ${PANEL}`}
-				style={{ left: panelPos.x, top: panelPos.y }}
+				className={`absolute z-20 ${PANEL}`}
+				style={{ left: panelPos.x, top: panelPos.y, width: PANEL_W }}
 			>
 				<div
 					className="flex cursor-move items-center gap-2 rounded-t-lg border-gray-200 border-b bg-gray-100/70 px-3 py-1.5 dark:border-gray-700 dark:bg-gray-700/40"
@@ -254,7 +256,7 @@ export default function App() {
 				</div>
 			</div>
 
-			{/* 左固定パネル: 遷移表エディタ。テープ帯の上端で止め(bottomInset)、
+			{/* 左固定パネル: 遷移関数エディタ。テープ帯の上端で止め(bottomInset)、
 			    中身は上下スクロール。テープの描画を隠さないよう z を下部帯より下に。 */}
 			{frame && (
 				<section
