@@ -129,7 +129,11 @@ export default function App() {
 						</div>
 
 						<div className="mt-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-							<AutomatonDiagram spec={machine.spec} current={currentState} />
+							<AutomatonDiagram
+								key={machine.id}
+								spec={machine.spec}
+								current={currentState}
+							/>
 						</div>
 
 						<ConfigView frame={frame} />
