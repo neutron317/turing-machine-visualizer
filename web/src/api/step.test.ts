@@ -66,11 +66,27 @@ describe("step API クライアント", () => {
 		).rejects.toBeInstanceOf(StepError);
 	});
 
-	it("契約違反の応答は例外になる(Zod 検証)", async () => {
+	it("契約違反の応答は StepError になる(Zod 検証を正規化)", async () => {
 		stubFetch({ ok: true, status: 200, json: () => ({ status: "bogus" }) });
 		await expect(
 			stepDfa(dfaSpec, { state: "Even", rest: ["a"] }),
-		).rejects.toThrow();
+		).rejects.toBeInstanceOf(StepError);
+	});
+
+	it("2xx でも本文が JSON でない(json() 失敗)は StepError に正規化", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => ({
+				ok: true,
+				status: 200,
+				json: () => {
+					throw new SyntaxError("Unexpected token <");
+				},
+			})),
+		);
+		await expect(
+			stepDfa(dfaSpec, { state: "Even", rest: ["a"] }),
+		).rejects.toBeInstanceOf(StepError);
 	});
 
 	it("stepDtm は /api/dtm/step を叩く", async () => {
