@@ -7,16 +7,19 @@ import { defineConfig } from "vitest/config";
 // これにより同一オリジン扱いになり CORS 不要。API_TARGET で差し替え可能。
 const apiTarget = process.env.API_TARGET ?? "http://localhost:3000";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
 	plugins: [react(), tailwindcss()],
 	server: {
 		proxy: {
 			"/api": { target: apiTarget, changeOrigin: true },
 		},
+		// テスト時のみ、リポジトリ直下 example/ の JSON を ?raw で読み込めるよう
+		// 親ディレクトリを許可する(dev サーバの権限は広げない)。
+		...(mode === "test" ? { fs: { allow: [".."] } } : {}),
 	},
 	test: {
 		environment: "jsdom",
 		globals: false,
 		setupFiles: ["./src/test/setup.ts"],
 	},
-});
+}));
