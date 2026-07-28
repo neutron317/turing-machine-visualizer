@@ -77,6 +77,14 @@ describe("App(再生 UI)", () => {
 		});
 	});
 
+	it("機械を切り替えると入力欄が既定入力へ戻る", () => {
+		render(<App />);
+		const input = () => screen.getByLabelText(/入力/) as HTMLInputElement;
+		fireEvent.change(input(), { target: { value: "aaa" } });
+		fireEvent.click(screen.getByRole("button", { name: /DTM/ }));
+		expect(input().value).toBe("abc"); // DTM の既定入力
+	});
+
 	it("機械を切り替えると状態図と現在状態が切り替わる", async () => {
 		const { container } = render(<App />);
 		const activeState = () =>

@@ -218,6 +218,10 @@ export default function App() {
 							value={inputText}
 							onChange={(e) => setInputText(e.target.value)}
 							onKeyDown={(e) => {
+								// IME 変換確定の Enter で誤って実行しない。
+								if (e.nativeEvent.isComposing) {
+									return;
+								}
 								if (e.key === "Enter") {
 									runInput();
 								}
