@@ -115,10 +115,16 @@ export function AutomatonDiagram({
 	spec,
 	current,
 	fired,
+	bottomInset = 0,
+	historyOpen = false,
+	onToggleHistory,
 }: {
 	spec: DFASpec | DTMSpec;
 	current: string;
 	fired?: { from: string; to: string } | null;
+	bottomInset?: number;
+	historyOpen?: boolean;
+	onToggleHistory?: () => void;
 }) {
 	const { states, accept, start, edges } = toGraph(spec);
 	const firedKey = fired ? JSON.stringify([fired.from, fired.to]) : null;
@@ -224,7 +230,20 @@ export function AutomatonDiagram({
 
 	return (
 		<div className="relative h-full w-full">
-			<div className="absolute top-2 right-2 z-10 flex items-center gap-2 rounded border border-gray-300 bg-white/80 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800/80">
+			<div
+				className="absolute right-3 z-30 flex flex-col items-center gap-2 rounded border border-gray-300 bg-white/85 p-2 text-sm dark:border-gray-600 dark:bg-gray-800/85"
+				style={{ bottom: bottomInset + 12 }}
+			>
+				{onToggleHistory && (
+					<button
+						type="button"
+						aria-pressed={historyOpen}
+						className="rounded border border-gray-300 px-2 py-0.5 text-xs hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
+						onClick={onToggleHistory}
+					>
+						{historyOpen ? "履歴を隠す" : "遷移履歴"}
+					</button>
+				)}
 				<span className="text-gray-500 text-xs">ズーム</span>
 				<input
 					type="range"
@@ -234,7 +253,8 @@ export function AutomatonDiagram({
 					step={0.1}
 					value={scale}
 					onChange={(e) => zoomTo(Number(e.target.value))}
-					className="w-28"
+					className="h-28"
+					style={{ writingMode: "vertical-lr", direction: "rtl" }}
 				/>
 				<button
 					type="button"

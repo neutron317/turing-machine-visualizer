@@ -75,6 +75,19 @@ describe("replay ストア", () => {
 		expect(selectCurrentFrame(s)?.status).toBe("accept");
 	});
 
+	it("goto で任意コマへジャンプし、範囲外はクランプ・再生は止まる", () => {
+		const st = useReplayStore.getState();
+		st.load(trace);
+		st.play();
+		st.goto(2);
+		expect(useReplayStore.getState().cursor).toBe(2);
+		expect(useReplayStore.getState().playing).toBe(false);
+		st.goto(99);
+		expect(useReplayStore.getState().cursor).toBe(3); // frames.length-1 にクランプ
+		st.goto(-5);
+		expect(useReplayStore.getState().cursor).toBe(0);
+	});
+
 	it("先頭では後退できない", () => {
 		useReplayStore.getState().load(trace);
 		expect(selectCanStepBack(useReplayStore.getState())).toBe(false);

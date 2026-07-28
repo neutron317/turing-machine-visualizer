@@ -55,30 +55,34 @@ export function IdLine({ frame }: { frame: Frame }) {
 	);
 }
 
-// 現在カーソルまでの遷移履歴を瞬間記述(⊢ 記法)の列で表示する。
+// 遷移履歴を瞬間記述(⊢ 記法)の列で表示する。全コマを常に表示し(戻っても
+// 消えない)、行をクリックするとそのコマへジャンプする。現在行は強調。
 export function TraceHistory({
 	frames,
-	cursor,
+	current,
+	onSelect,
 }: {
 	frames: Frame[];
-	cursor: number;
+	current: number;
+	onSelect: (index: number) => void;
 }) {
 	return (
-		<ol className="space-y-1 text-sm leading-6">
-			{frames.slice(0, cursor + 1).map((f, i) => (
-				<li
-					// biome-ignore lint/suspicious/noArrayIndexKey: コマ位置がキーの意味を持つ
-					key={i}
-					className={
-						i === cursor
-							? "rounded bg-blue-50 px-1 dark:bg-blue-950/40"
-							: "px-1"
-					}
-				>
-					<span className="mr-1 inline-block w-3 text-gray-400">
-						{i === 0 ? "" : "⊢"}
-					</span>
-					<IdLine frame={f} />
+		<ol className="text-sm leading-6">
+			{frames.map((f, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: コマ位置がキーの意味を持つ
+				<li key={i}>
+					<button
+						type="button"
+						onClick={() => onSelect(i)}
+						className={`flex w-full items-baseline gap-1 rounded px-1 text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${
+							i === current ? "bg-blue-100 dark:bg-blue-900/50" : ""
+						}`}
+					>
+						<span className="inline-block w-3 shrink-0 text-gray-400">
+							{i === 0 ? "" : "⊢"}
+						</span>
+						<IdLine frame={f} />
+					</button>
 				</li>
 			))}
 		</ol>
