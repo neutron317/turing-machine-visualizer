@@ -1,5 +1,6 @@
 import type { Status } from "../contract/schemas.ts";
 import type { Fired, Frame } from "../store/replay.ts";
+import { Tape } from "./Tape.tsx";
 
 // テープ空白(null)の表示。
 function cell(sym: string | null): string {
@@ -58,33 +59,6 @@ function DfaTape({ rest }: { rest: string[] }) {
 	);
 }
 
-// DTM: テープ。ヘッド位置を強調する。
-function DtmTape({
-	left,
-	head,
-	right,
-}: {
-	left: (string | null)[];
-	head: string | null;
-	right: (string | null)[];
-}) {
-	return (
-		<div className="mt-3">
-			<div className="text-sm text-gray-500">テープ(▼ がヘッド)</div>
-			<div className="inline-flex items-end gap-1">
-				<Cells items={left} />
-				<span className="inline-flex flex-col items-center">
-					<span className="text-xs">▼</span>
-					<span className="inline-flex h-8 w-8 items-center justify-center rounded border-2 border-blue-500 font-mono">
-						{cell(head)}
-					</span>
-				</span>
-				<Cells items={right} />
-			</div>
-		</div>
-	);
-}
-
 function FiredView({ fired }: { fired: Fired }) {
 	if (fired === null) {
 		return <div className="mt-3 text-sm text-gray-500">発火した遷移: —</div>;
@@ -114,7 +88,7 @@ export function ConfigView({ frame }: { frame: Frame }) {
 			{"rest" in config ? (
 				<DfaTape rest={config.rest} />
 			) : (
-				<DtmTape left={config.left} head={config.head} right={config.right} />
+				<Tape left={config.left} head={config.head} right={config.right} />
 			)}
 			<FiredView fired={fired} />
 		</section>
