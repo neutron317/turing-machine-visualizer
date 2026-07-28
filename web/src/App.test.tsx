@@ -87,12 +87,35 @@ describe("App(再生 UI)", () => {
 
 	it("左パネルに遷移関数エディタを表示する", () => {
 		render(<App />);
+		// aria-labelledby と h2#editor-heading の結び付き(名前付き region)も検証。
+		expect(
+			screen.getByRole("region", { name: /遷移関数/ }),
+		).toBeInTheDocument();
 		expect(
 			screen.getByRole("heading", { name: /遷移関数/ }),
 		).toBeInTheDocument();
 		expect(
 			screen.getByRole("button", { name: "この定義で実行" }),
 		).toBeInTheDocument();
+	});
+
+	it("入力欄の id は重複しない(移設で二重にしていない)", () => {
+		const { container } = render(<App />);
+		expect(container.querySelectorAll("#input-str")).toHaveLength(1);
+	});
+
+	it("入力を変えて再生すると新しい入力で実行し直す", () => {
+		render(<App />);
+		const input = screen.getByLabelText(/入力/) as HTMLInputElement;
+		fireEvent.change(input, { target: { value: "aaa" } });
+		fireEvent.click(screen.getByRole("button", { name: "再生" }));
+		// 再生時に入力変更を検知し、初期テープを "aaa" で作り直す。
+		expect(useReplayStore.getState().frames[0]?.config).toEqual({
+			state: "Even",
+			rest: ["a", "a", "a"],
+		});
+		// 後片付け: 自動再生を止める。
+		useReplayStore.getState().pause();
 	});
 
 	it("機械を切り替えると状態図と現在状態が切り替わる", async () => {

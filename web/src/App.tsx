@@ -28,6 +28,23 @@ const PANEL =
 	"rounded-lg border border-gray-200 bg-white/90 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-800/90";
 const CTRL =
 	"rounded border border-gray-300 px-2 py-1 text-sm disabled:opacity-40 dark:border-gray-600 dark:hover:bg-gray-700";
+// 移動可能な操作板の幅(px。w-60 と一致)。ドラッグ/初期位置のクランプに使う。
+const PANEL_W = 240;
+// 左右のサイドパネル(遷移表エディタ / 遷移履歴)の共通外殻。side ごとに
+// `left-0 border-r` / `right-0 border-l` を付け足す。
+const SIDE_PANEL =
+	"absolute top-0 z-10 flex flex-col border-gray-200 bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90";
+// サイドパネルの見出し行の共通スタイル。
+const PANEL_HEADING =
+	"border-gray-200 border-b px-3 py-2 font-medium text-gray-600 text-xs dark:border-gray-700 dark:text-gray-300";
+
+// 操作板の位置をビューポート内へクランプする(画面外に落として掴めなくなるのを防ぐ)。
+function clampPanel(x: number, y: number) {
+	return {
+		x: Math.min(Math.max(0, x), Math.max(0, window.innerWidth - PANEL_W)),
+		y: Math.min(Math.max(0, y), Math.max(0, window.innerHeight - 40)),
+	};
+}
 
 // 機械の初期コンフィグ(契約 §3)。モジュール定数なので参照が安定する。
 function machineInitial(m: Machine) {
@@ -64,9 +81,13 @@ export default function App() {
 		setSpeed,
 	} = useReplayStore.getState();
 
+	// 現在の実行が使っている入力文字列。再生時に入力が変わっていれば実行し直す。
+	const runInputRef = useRef(machines[0].input);
+
 	// 機械(spec + 入力)から実行を開始する。
 	const startMachine = (m: Machine) => {
 		startRun(m.kind, m.spec, machineInitial(m));
+		runInputRef.current = m.input;
 	};
 
 	// 指定の spec を現在の入力で実行する(入力欄・遷移表エディタの両方から使う)。
@@ -76,12 +97,25 @@ export default function App() {
 				? initialDfaConfig(spec as DFASpec, inputText)
 				: initialDtmConfig(spec as DTMSpec, inputText);
 		startRun(machine.kind, spec, initial);
+		runInputRef.current = inputText;
 	};
 	// 編集した入力文字列で現在の機械(プリセット spec)を実行する。
 	const runInput = () => runSpec(machine.spec);
+	// 再生/一時停止。入力が変わっていれば、現在の定義で新しい入力から実行し直す。
+	const onPlayPause = () => {
+		if (playing) {
+			pause();
+			return;
+		}
+		if (runInputRef.current !== inputText) {
+			runSpec(runningSpec ?? machine.spec);
+		}
+		play();
+	};
 
-	// 操作板の位置(ドラッグで移動可)。既定は左固定パネルと重ならない位置。
-	const [panelPos, setPanelPos] = useState({ x: EDITOR_W + 24, y: 12 });
+	// 操作板の位置(ドラッグで移動可)。既定は左固定パネルと重ならない位置だが、
+	// 狭い画面で画面外に出て掴めなくならないよう初期値もクランプする。
+	const [panelPos, setPanelPos] = useState(() => clampPanel(EDITOR_W + 24, 12));
 	const panelDrag = useRef<{ dx: number; dy: number } | null>(null);
 	const onPanelDown = (e: ReactPointerEvent<HTMLDivElement>) => {
 		panelDrag.current = {
@@ -95,21 +129,22 @@ export default function App() {
 			return;
 		}
 		// 画面外へ落として掴み直せなくならないよう、ビューポート内にクランプする。
-		const w = 240;
-		setPanelPos({
-			x: Math.min(
-				Math.max(0, e.clientX - panelDrag.current.dx),
-				window.innerWidth - w,
+		setPanelPos(
+			clampPanel(
+				e.clientX - panelDrag.current.dx,
+				e.clientY - panelDrag.current.dy,
 			),
-			y: Math.min(
-				Math.max(0, e.clientY - panelDrag.current.dy),
-				window.innerHeight - 40,
-			),
-		});
+		);
 	};
 	const onPanelUp = () => {
 		panelDrag.current = null;
 	};
+	// ウィンドウ縮小で操作板が画面外に出たら、掴める位置へ戻す。
+	useEffect(() => {
+		const onResize = () => setPanelPos((p) => clampPanel(p.x, p.y));
+		window.addEventListener("resize", onResize);
+		return () => window.removeEventListener("resize", onResize);
+	}, []);
 
 	const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -170,7 +205,7 @@ export default function App() {
 
 	return (
 		<main className="relative h-screen w-screen overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-			{/* 状態図(全面)。操作クラスタ(縦ズーム + 履歴トグル)は右下・帯の上。
+			{/* 状態図(全面)。操作クラスタ(縦ズーム + 履歴トグル)は右上。
 			    履歴を出すとドロワー幅ぶん左へ寄る(rightInset)。 */}
 			<div className="absolute inset-0">
 				{frame && (
@@ -179,7 +214,6 @@ export default function App() {
 						spec={runningSpec ?? machine.spec}
 						current={currentState}
 						fired={frame.fired}
-						bottomInset={bottomInset}
 						rightInset={historyOpen ? HISTORY_W : 0}
 						historyOpen={historyOpen}
 						onToggleHistory={() => setHistoryOpen((o) => !o)}
@@ -224,14 +258,11 @@ export default function App() {
 			    中身は上下スクロール。テープの描画を隠さないよう z を下部帯より下に。 */}
 			{frame && (
 				<section
-					className="absolute top-0 left-0 z-10 flex flex-col border-gray-200 border-r bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90"
+					className={`${SIDE_PANEL} left-0 border-r`}
 					style={{ width: EDITOR_W, bottom: bottomInset }}
 					aria-labelledby="editor-heading"
 				>
-					<h2
-						id="editor-heading"
-						className="border-gray-200 border-b px-3 py-2 font-medium text-gray-600 text-xs dark:border-gray-700 dark:text-gray-300"
-					>
+					<h2 id="editor-heading" className={PANEL_HEADING}>
 						遷移関数(編集して実行)
 					</h2>
 					<div className="flex-1 overflow-y-auto px-3 py-2">
@@ -264,11 +295,7 @@ export default function App() {
 							>
 								戻る
 							</button>
-							<button
-								type="button"
-								className={CTRL}
-								onClick={playing ? pause : play}
-							>
+							<button type="button" className={CTRL} onClick={onPlayPause}>
 								{playing ? "一時停止" : "再生"}
 							</button>
 							<button
@@ -331,14 +358,11 @@ export default function App() {
 			    下部帯より下(z-10)にしてテープの描画を優先する。 */}
 			{frame && historyOpen && (
 				<section
-					className="absolute top-0 right-0 z-10 flex flex-col border-gray-200 border-l bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90"
+					className={`${SIDE_PANEL} right-0 border-l`}
 					style={{ width: HISTORY_W, bottom: bottomInset }}
 					aria-labelledby="history-heading"
 				>
-					<h2
-						id="history-heading"
-						className="border-gray-200 border-b px-3 py-2 font-medium text-gray-600 text-xs dark:border-gray-700 dark:text-gray-300"
-					>
+					<h2 id="history-heading" className={PANEL_HEADING}>
 						遷移履歴(⊢。行をクリックでその状態へ)
 					</h2>
 					<div className="flex-1 overflow-y-auto px-3 py-2">
