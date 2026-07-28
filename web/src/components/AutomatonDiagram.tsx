@@ -185,11 +185,15 @@ export function AutomatonDiagram({
 	const reset = () => setVb({ x: 0, y: 0, w: size, h: size });
 	const scale = size / vb.w;
 
-	// size(状態数・ラベル長)が変わったらキャンバス全体へフィットし直す
-	// (状態が増減しても切れずに収まるように)。
+	// 状態数(n)が変わったらキャンバス全体へフィットし直す(ノード配置が変わって
+	// 切れないように)。ラベル長だけの変化(size は動くがノードは動かない)では
+	// フィットせず、ユーザーのズーム/パン視点を保つ。size は ref 経由で最新を読む。
+	const sizeRef = useRef(size);
+	sizeRef.current = size;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: n(状態数)の変化だけを再フィットのトリガにする。値は sizeRef で最新 size を読む(ラベル長だけの size 変化では視点を保つ)。
 	useEffect(() => {
-		setVb({ x: 0, y: 0, w: size, h: size });
-	}, [size]);
+		setVb({ x: 0, y: 0, w: sizeRef.current, h: sizeRef.current });
+	}, [n]);
 
 	// ホイールでカーソル位置基準にズーム(ページスクロールを止めるため非 passive)。
 	useEffect(() => {
@@ -202,7 +206,8 @@ export function AutomatonDiagram({
 			const rect = svg.getBoundingClientRect();
 			const factor = e.deltaY > 0 ? 1.1 : 1 / 1.1;
 			setVb((v) => {
-				const nw = Math.min(Math.max(v.w * factor, size / 4), size * 2);
+				const lim = sizeRef.current;
+				const nw = Math.min(Math.max(v.w * factor, lim / 4), lim * 2);
 				// letterbox(meet)を考慮してカーソル直下の viewBox 座標を固定する。
 				const s = Math.min(rect.width / v.w, rect.height / v.h);
 				const px =
@@ -219,8 +224,8 @@ export function AutomatonDiagram({
 		};
 		svg.addEventListener("wheel", onWheel, { passive: false });
 		return () => svg.removeEventListener("wheel", onWheel);
-		// size が変わるとズーム上下限も変わるので張り直す。
-	}, [size]);
+		// ズーム上下限は sizeRef 経由で最新 size を読むのでリスナは一度張れば十分。
+	}, []);
 
 	const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
 		const rect = e.currentTarget.getBoundingClientRect();
