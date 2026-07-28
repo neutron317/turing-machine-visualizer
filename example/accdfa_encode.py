@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# app の DFA(保存 JSON エンベロープ)→ ACCDFA v2 のテープ文字列に変換する。
-# 使い方: python3 dfa_to_accdfa_tape.py path/to/dfa.json [入力語]
-#  - DFA の入力アルファベットは {a,b} のみ対応(ACCDFA v2 の固定入力)。
+# app の DFA(保存 JSON エンベロープ)→ ACCDFA のテープ文字列に変換する。
+# 使い方: python3 example/accdfa_encode.py path/to/dfa.json [入力語]
+#  - DFA の入力アルファベットは {a,b} のみ対応(ACCDFA の固定入力)。
 #  - 状態名は任意文字列。states の順で 0,1,2... の2進添字(固定幅 W)に割り当てる。
 import json, sys, math
 def convert(env, word=None):
