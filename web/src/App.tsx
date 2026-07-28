@@ -16,6 +16,8 @@ import {
 } from "./store/replay.ts";
 
 const SPEEDS = [1, 2, 4, 8];
+// 遷移履歴ドロワーの幅(px)。状態図の操作クラスタはこの分だけ左へ寄せる。
+const HISTORY_W = 288;
 const PANEL =
 	"rounded-lg border border-gray-200 bg-white/90 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-800/90";
 const CTRL =
@@ -69,8 +71,8 @@ export default function App() {
 
 	const [historyOpen, setHistoryOpen] = useState(false);
 
-	// 下部帯の高さを測り、状態図の操作クラスタをその上に配置する
-	// (履歴を出すと帯が高くなり、クラスタも連れて上へ移動する)。
+	// 下部帯(再生 + テープ)の高さを測る。状態図の操作クラスタをその上に置き、
+	// 右ドロワー(履歴)の下端もこの高さで止めてテープの描画を優先する。
 	const bottomRef = useRef<HTMLDivElement>(null);
 	const [bottomInset, setBottomInset] = useState(0);
 	const hasFrame = frame != null;
@@ -112,7 +114,8 @@ export default function App() {
 
 	return (
 		<main className="relative h-screen w-screen overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-			{/* 状態図(全面)。操作クラスタ(縦ズーム + 履歴トグル)は右下・帯の上に。 */}
+			{/* 状態図(全面)。操作クラスタ(縦ズーム + 履歴トグル)は右下・帯の上。
+			    履歴を出すとドロワー幅ぶん左へ寄る(rightInset)。 */}
 			<div className="absolute inset-0">
 				{frame && (
 					<AutomatonDiagram
@@ -121,6 +124,7 @@ export default function App() {
 						current={currentState}
 						fired={frame.fired}
 						bottomInset={bottomInset}
+						rightInset={historyOpen ? HISTORY_W : 0}
 						historyOpen={historyOpen}
 						onToggleHistory={() => setHistoryOpen((o) => !o)}
 					/>
@@ -213,18 +217,22 @@ export default function App() {
 						<div className="px-3 pb-3">
 							<ConfigView frame={frame} />
 						</div>
-						{historyOpen && (
-							<div className="max-h-56 overflow-y-auto border-gray-200 border-t px-3 py-2 dark:border-gray-700">
-								<div className="mb-1 text-gray-500 text-xs">
-									遷移履歴(⊢。行をクリックでその状態へ)
-								</div>
-								<TraceHistory
-									frames={frames}
-									current={cursor}
-									onSelect={goto}
-								/>
-							</div>
-						)}
+					</div>
+				</div>
+			)}
+
+			{/* 遷移履歴(右ドロワー)。下端はテープ帯の上で止め(bottomInset)、z を
+			    下部帯より下(z-10)にしてテープの描画を優先する。 */}
+			{frame && historyOpen && (
+				<div
+					className="absolute top-0 right-0 z-10 flex flex-col border-gray-200 border-l bg-white/90 backdrop-blur dark:border-gray-700 dark:bg-gray-800/90"
+					style={{ width: HISTORY_W, bottom: bottomInset }}
+				>
+					<div className="border-gray-200 border-b px-3 py-2 text-gray-500 text-xs dark:border-gray-700">
+						遷移履歴(⊢。行をクリックでその状態へ)
+					</div>
+					<div className="flex-1 overflow-y-auto px-3 py-2">
+						<TraceHistory frames={frames} current={cursor} onSelect={goto} />
 					</div>
 				</div>
 			)}

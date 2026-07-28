@@ -116,6 +116,7 @@ export function AutomatonDiagram({
 	current,
 	fired,
 	bottomInset = 0,
+	rightInset = 0,
 	historyOpen = false,
 	onToggleHistory,
 }: {
@@ -123,6 +124,7 @@ export function AutomatonDiagram({
 	current: string;
 	fired?: { from: string; to: string } | null;
 	bottomInset?: number;
+	rightInset?: number;
 	historyOpen?: boolean;
 	onToggleHistory?: () => void;
 }) {
@@ -231,8 +233,8 @@ export function AutomatonDiagram({
 	return (
 		<div className="relative h-full w-full">
 			<div
-				className="absolute right-3 z-30 flex flex-col items-center gap-2 rounded border border-gray-300 bg-white/85 p-2 text-sm dark:border-gray-600 dark:bg-gray-800/85"
-				style={{ bottom: bottomInset + 12 }}
+				className="absolute z-30 flex flex-col items-center gap-2 rounded border border-gray-300 bg-white/85 p-2 text-sm dark:border-gray-600 dark:bg-gray-800/85"
+				style={{ bottom: bottomInset + 12, right: rightInset + 12 }}
 			>
 				{onToggleHistory && (
 					<button
