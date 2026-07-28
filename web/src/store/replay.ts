@@ -31,6 +31,9 @@ export interface ReplayState {
 	speed: number; // 1 秒あたりのステップ数
 	loading: boolean; // /step リクエスト実行中
 	error: string | null; // 直近の失敗(StepError など)
+	// ナビ操作(前後 / ジャンプ / リセット / 機械切替)の世代。非同期取得の間に
+	// ユーザーが動いたかを検出し、取得結果で勝手に tip へ飛ばさないために使う。
+	gen: number;
 	startRun: (kind: Kind, spec: Spec, initial: Config) => void;
 	stepForward: () => Promise<void>;
 	stepBack: () => void;
@@ -56,10 +59,12 @@ export const useReplayStore = create<ReplayState>()((set, get) => ({
 	speed: 2,
 	loading: false,
 	error: null,
+	gen: 0,
 
 	// spec と初期コンフィグから新しい実行を開始する。履歴は初期コマ 1 つ。
+	// gen を進め、飛行中の取得結果が新しい実行へ紛れ込まないようにする。
 	startRun: (kind, spec, initial) =>
-		set({
+		set((s) => ({
 			kind,
 			spec,
 			frames: [{ config: initial, status: "running", fired: null }],
@@ -67,32 +72,38 @@ export const useReplayStore = create<ReplayState>()((set, get) => ({
 			playing: false,
 			loading: false,
 			error: null,
-		}),
+			gen: s.gen + 1,
+		})),
 
 	// 前進。履歴内なら cursor++(再計算しない)。tip かつ running なら /step を
 	// 叩いて 1 コマ取得し push する。terminal なら何もしない。
 	stepForward: async () => {
-		const { cursor, frames, spec, kind, loading } = get();
-		if (loading) {
-			return; // 多重リクエストを避ける
-		}
-		// 履歴内の前進(同期)。
+		const { cursor, frames, spec, kind, loading, gen } = get();
+		// 履歴内の前進(同期)。取得中でも許可する。ナビ操作なので gen を進める。
 		if (cursor < frames.length - 1) {
 			const next = cursor + 1;
 			// 最終コマが terminal ならそこで自動再生を止める。
 			const stop = next >= frames.length - 1 && tipIsTerminal(frames);
-			set(stop ? { cursor: next, playing: false } : { cursor: next });
+			set((s) => ({
+				cursor: next,
+				gen: s.gen + 1,
+				...(stop ? { playing: false } : {}),
+			}));
 			return;
 		}
-		// tip での前進(非同期取得)。
+		// tip での前進(非同期取得)。取得中は多重取得を避ける。
+		if (loading) {
+			return;
+		}
 		const tip = frames[cursor];
 		if (tip?.status !== "running" || !spec) {
 			set({ playing: false });
 			return;
 		}
-		// この実行を識別するために frames 参照を捕捉する(取得中に機械が
-		// 切り替わったら startRun が frames を差し替えるので破棄する)。
+		// 取得中に機械が切り替わったら frames 参照で検出して破棄する。取得中に
+		// スクラブ/リセットされたら(gen が変わる)tip へは追従せず push だけ行う。
 		const runFrames = frames;
+		const startGen = gen;
 		set({ loading: true, error: null });
 		try {
 			const result =
@@ -103,17 +114,17 @@ export const useReplayStore = create<ReplayState>()((set, get) => ({
 			if (s.frames !== runFrames) {
 				return; // 実行が切り替わった。結果は破棄(loading は startRun 側で false)。
 			}
+			const follow = s.gen === startGen; // 取得中にユーザーが動いていない
 			const nextIndex = s.frames.length; // 追加するコマの位置
-			const stillAtTip = s.cursor === nextIndex - 1; // ユーザーがスクラブしていない
 			set({
 				frames: [
 					...s.frames,
 					{ config: result.config, status: result.status, fired: result.fired },
 				],
-				cursor: stillAtTip ? nextIndex : s.cursor,
+				cursor: follow ? nextIndex : s.cursor,
 				loading: false,
-				// terminal に到達、またはスクラブ済みなら自動再生を止める。
-				playing: stillAtTip && result.status === "running" ? s.playing : false,
+				// terminal 到達、またはスクラブ済みなら自動再生を止める。
+				playing: follow && result.status === "running" ? s.playing : false,
 			});
 		} catch (e) {
 			const s = get();
@@ -131,7 +142,7 @@ export const useReplayStore = create<ReplayState>()((set, get) => ({
 	stepBack: () => {
 		const { cursor } = get();
 		if (cursor > 0) {
-			set({ cursor: cursor - 1, playing: false });
+			set((s) => ({ cursor: cursor - 1, playing: false, gen: s.gen + 1 }));
 		}
 	},
 
@@ -142,10 +153,10 @@ export const useReplayStore = create<ReplayState>()((set, get) => ({
 			return;
 		}
 		const i = Math.min(Math.max(0, index), frames.length - 1);
-		set({ cursor: i, playing: false });
+		set((s) => ({ cursor: i, playing: false, gen: s.gen + 1 }));
 	},
 
-	reset: () => set({ cursor: 0, playing: false }),
+	reset: () => set((s) => ({ cursor: 0, playing: false, gen: s.gen + 1 })),
 
 	play: () => {
 		const { frames, cursor } = get();

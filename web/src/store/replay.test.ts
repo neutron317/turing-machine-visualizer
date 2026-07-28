@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DFAConfig, DFASpec } from "../contract/schemas.ts";
+import type {
+	DFAConfig,
+	DFASpec,
+	DTMConfig,
+	DTMSpec,
+} from "../contract/schemas.ts";
 import {
 	selectCanStepBack,
 	selectCanStepForward,
@@ -176,6 +181,83 @@ describe("replay ストア(逐次ステップ)", () => {
 		resolve?.(steps[0]);
 		await p1;
 		expect(store().frames).toHaveLength(2);
+	});
+
+	it("tip 取得中でも履歴内の前進はでき、取得結果は tip へ飛ばさず push だけする", async () => {
+		start();
+		await store().stepForward(); // cursor1 len2
+		await store().stepForward(); // cursor2 len3(tip は running)
+		// 次の tip 取得を保留にする。
+		let resolveStep: ((v: (typeof steps)[number]) => void) | undefined;
+		stepDfaMock.mockImplementationOnce(
+			() =>
+				new Promise((r) => {
+					resolveStep = r;
+				}),
+		);
+		const p = store().stepForward(); // tip fetch pending
+		expect(store().loading).toBe(true);
+		// 取得中に履歴内へ戻り、さらに履歴内前進(loading でも可)。
+		store().goto(0);
+		await store().stepForward();
+		expect(store().cursor).toBe(1);
+		// 取得完了: スクラブ済みなので tip へ飛ばず、コマだけ push。
+		resolveStep?.(steps[2]);
+		await p;
+		expect(store().cursor).toBe(1);
+		expect(store().frames).toHaveLength(4);
+	});
+
+	it("初回取得中に reset しても cursor は 0 のまま(取得コマへ飛ばない)", async () => {
+		stepDfaMock.mockReset();
+		let resolveStep: ((v: (typeof steps)[number]) => void) | undefined;
+		stepDfaMock.mockImplementationOnce(
+			() =>
+				new Promise((r) => {
+					resolveStep = r;
+				}),
+		);
+		start(); // len1 cursor0
+		const p = store().stepForward();
+		expect(store().loading).toBe(true);
+		store().reset(); // 「最初へ」
+		resolveStep?.(steps[0]);
+		await p;
+		expect(store().cursor).toBe(0); // reset の意図が保たれる
+		expect(store().frames).toHaveLength(2); // コマ自体は push される
+	});
+
+	it("取得中に別機械へ切り替えると古い応答は破棄される", async () => {
+		stepDfaMock.mockReset();
+		let resolveStep: ((v: (typeof steps)[number]) => void) | undefined;
+		stepDfaMock.mockImplementationOnce(
+			() =>
+				new Promise((r) => {
+					resolveStep = r;
+				}),
+		);
+		start(); // dfa
+		const p = store().stepForward(); // pending dfa fetch
+		const dtmSpec: DTMSpec = {
+			states: ["Q"],
+			tapeAlphabet: ["a"],
+			start: "Q",
+			accept: [],
+			transitions: [],
+		};
+		const dtmInitial: DTMConfig = {
+			state: "Q",
+			left: [],
+			head: null,
+			right: [],
+		};
+		store().startRun("dtm", dtmSpec, dtmInitial); // 機械切替
+		expect(store().kind).toBe("dtm");
+		resolveStep?.(steps[0]); // 古い dfa 応答が着弾
+		await p;
+		expect(store().kind).toBe("dtm");
+		expect(store().frames).toHaveLength(1); // dfa コマは push されない
+		expect(selectCurrentFrame(store())?.config).toEqual(dtmInitial);
 	});
 
 	it("終端から play() すると先頭へ戻して再生する", async () => {
