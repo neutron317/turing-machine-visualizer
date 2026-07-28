@@ -6,6 +6,7 @@ import {
 } from "react";
 import { AutomatonDiagram } from "./components/AutomatonDiagram.tsx";
 import { ConfigView } from "./components/ConfigView.tsx";
+import { TraceHistory } from "./components/TraceHistory.tsx";
 import { type Machine, machines } from "./fixtures/machines.ts";
 import {
 	selectCanStepBack,
@@ -31,11 +32,14 @@ export default function App() {
 	const speed = useReplayStore((s) => s.speed);
 	const canForward = useReplayStore(selectCanStepForward);
 	const canBack = useReplayStore(selectCanStepBack);
+	const frames = useReplayStore((s) => s.frames);
 	const { load, stepForward, stepBack, reset, play, pause, setSpeed } =
 		useReplayStore.getState();
 
 	// 操作板の位置(ドラッグで移動可)。
 	const [panelPos, setPanelPos] = useState({ x: 12, y: 12 });
+	const [historyOpen, setHistoryOpen] = useState(false);
+	const histRef = useRef<HTMLDivElement>(null);
 	const panelDrag = useRef<{ dx: number; dy: number } | null>(null);
 	const onPanelDown = (e: ReactPointerEvent<HTMLDivElement>) => {
 		panelDrag.current = {
@@ -82,6 +86,14 @@ export default function App() {
 		}, 1000 / speed);
 		return () => clearInterval(id);
 	}, [playing, speed]);
+
+	// 履歴を開いている間、現在位置(末尾)へ自動スクロール。cursor 変化で再実行したい。
+	// biome-ignore lint/correctness/useExhaustiveDependencies: cursor を依存に含めて末尾へ追従させる
+	useEffect(() => {
+		if (historyOpen && histRef.current) {
+			histRef.current.scrollTop = histRef.current.scrollHeight;
+		}
+	}, [historyOpen, cursor]);
 
 	const selectMachine = (m: Machine) => {
 		setSelectedId(m.id);
@@ -134,6 +146,14 @@ export default function App() {
 							{m.label}
 						</button>
 					))}
+					<button
+						type="button"
+						aria-pressed={historyOpen}
+						className="mt-2 rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
+						onClick={() => setHistoryOpen((o) => !o)}
+					>
+						{historyOpen ? "遷移履歴を隠す" : "遷移履歴を表示"}
+					</button>
 				</div>
 			</div>
 
@@ -190,6 +210,28 @@ export default function App() {
 					</div>
 				</div>
 			)}
+
+			{/* 遷移履歴ドロワー(出し入れ・⊢ 記法) */}
+			<div
+				className={`absolute top-0 right-0 z-30 flex h-full w-80 max-w-[85vw] transform flex-col border-gray-200 border-l bg-white/95 backdrop-blur transition-transform dark:border-gray-700 dark:bg-gray-800/95 ${
+					historyOpen ? "translate-x-0" : "translate-x-full"
+				}`}
+				inert={!historyOpen}
+			>
+				<div className="flex items-center justify-between border-gray-200 border-b px-3 py-2 dark:border-gray-700">
+					<h2 className="font-bold text-sm">遷移履歴(⊢)</h2>
+					<button
+						type="button"
+						className="rounded px-2 py-0.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+						onClick={() => setHistoryOpen(false)}
+					>
+						閉じる
+					</button>
+				</div>
+				<div ref={histRef} className="flex-1 overflow-y-auto p-3">
+					<TraceHistory frames={frames} cursor={cursor} />
+				</div>
+			</div>
 		</main>
 	);
 }
