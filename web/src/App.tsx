@@ -13,6 +13,7 @@ import {
 	downloadText,
 	encodeMachine,
 	machineFileName,
+	machineNameFromFile,
 } from "./components/machineFile.ts";
 import { SpecEditor } from "./components/SpecEditor.tsx";
 import { SymbolPalette } from "./components/SymbolPalette.tsx";
@@ -185,7 +186,6 @@ export default function App() {
 	const saveMachine = () => {
 		const text = encodeMachine({
 			kind: machine.kind,
-			label: machine.label,
 			input: inputText,
 			spec: machine.spec,
 		});
@@ -201,7 +201,11 @@ export default function App() {
 		}
 		const text = await file.text();
 		newIdRef.current += 1;
-		const res = decodeMachine(text, `loaded-${newIdRef.current}`);
+		const res = decodeMachine(
+			text,
+			`loaded-${newIdRef.current}`,
+			machineNameFromFile(file.name),
+		);
 		if ("error" in res) {
 			setLoadError(res.error);
 			return;

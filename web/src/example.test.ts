@@ -11,8 +11,8 @@ describe("example/ のサンプル機械", () => {
 		["dfa-divisible-by-3.json", div3, "dfa"],
 		["dtm-palindrome.json", palindrome, "dtm"],
 		["accdfa.json", accdfa, "dtm"],
-	])("%s が読み込める(kind=%s)", (_name, text, kind) => {
-		const result = decodeMachine(text, "ex");
+	])("%s が読み込める(kind=%s)", (name, text, kind) => {
+		const result = decodeMachine(text, "ex", name);
 		expect("machine" in result).toBe(true);
 		if ("machine" in result) {
 			expect(result.machine.kind).toBe(kind);

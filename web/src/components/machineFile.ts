@@ -10,42 +10,50 @@ import type { Kind, Spec } from "../store/replay.ts";
 // フォーマットのバージョン。encode と schema で共有する(単一点で更新できるように)。
 const FORMAT_VERSION = 1;
 
+// 表示名(label)はファイルには保存しない(名前はファイル名から取る)。古いファイルが
+// label を持っていても z.object は未知キーを取り除くだけなので、そのまま読み込める。
 const envelopeSchema = z.object({
 	v: z.literal(FORMAT_VERSION),
 	kind: z.enum(["dfa", "dtm"]),
-	label: z.string(),
 	input: z.string(),
 	spec: z.unknown(),
 });
 
 // 機械の内容を保存用テキスト(ミニファイ JSON)へ。入力は現在の入力欄の値を渡す。
+// 表示名は保存しない(読込時にファイル名から付ける)。
 export function encodeMachine(m: {
 	kind: Kind;
-	label: string;
 	input: string;
 	spec: Spec;
 }): string {
 	return JSON.stringify({
 		v: FORMAT_VERSION,
 		kind: m.kind,
-		label: m.label,
 		input: m.input,
 		spec: m.spec,
 	});
 }
 
-// ラベルから安全な保存ファイル名を作る。空白のみ/空はフォールバックし、ファイル名に
+// 表示名から安全な保存ファイル名を作る。空白のみ/空はフォールバックし、ファイル名に
 // 使えない文字(と制御文字)は _ へ置換する。
-export function machineFileName(label: string): string {
-	const base = label.trim().replace(/[\\/:*?"<>|]/g, "_");
+export function machineFileName(name: string): string {
+	const base = name.trim().replace(/[\\/:*?"<>|]/g, "_");
 	return `${base || "machine"}.json`;
 }
 
-// 保存テキストから機械を復元する。id は呼び出し側が採番して渡す。spec は kind に
-// 応じて契約(Zod)で検証する。失敗は error 文字列に正規化する。
+// 読み込んだファイル名から機械の表示名を作る。末尾の .json を除き、空ならフォールバック。
+export function machineNameFromFile(filename: string): string {
+	const base = filename.replace(/\.json$/i, "").trim();
+	return base || "machine";
+}
+
+// 保存テキストから機械を復元する。id は呼び出し側が採番して渡す。name は表示名
+// (ファイル名から作る)。spec は kind に応じて契約(Zod)で検証する。失敗は error
+// 文字列に正規化する。
 export function decodeMachine(
 	text: string,
 	id: string,
+	name: string,
 ): { machine: Machine } | { error: string } {
 	let data: unknown;
 	try {
@@ -55,21 +63,25 @@ export function decodeMachine(
 	}
 	const env = envelopeSchema.safeParse(data);
 	if (!env.success) {
-		return { error: "ファイル形式が不正です(v/kind/label/input/spec)。" };
+		return { error: "ファイル形式が不正です(v/kind/input/spec)。" };
 	}
-	const { kind, label, input, spec } = env.data;
+	const { kind, input, spec } = env.data;
 	if (kind === "dfa") {
 		const parsed = dfaSpecSchema.safeParse(spec);
 		if (!parsed.success) {
 			return { error: "DFA の定義が契約に一致しません。" };
 		}
-		return { machine: { id, kind: "dfa", label, input, spec: parsed.data } };
+		return {
+			machine: { id, kind: "dfa", label: name, input, spec: parsed.data },
+		};
 	}
 	const parsed = dtmSpecSchema.safeParse(spec);
 	if (!parsed.success) {
 		return { error: "DTM の定義が契約に一致しません。" };
 	}
-	return { machine: { id, kind: "dtm", label, input, spec: parsed.data } };
+	return {
+		machine: { id, kind: "dtm", label: name, input, spec: parsed.data },
+	};
 }
 
 // 保存テキストをファイルとしてダウンロードさせる(ブラウザのみ)。<a> を DOM に挿入
