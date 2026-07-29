@@ -3,6 +3,7 @@ import accdfa from "../../example/accdfa.tmvdtm?raw";
 import div3 from "../../example/dfa-divisible-by-3.tmvdfa?raw";
 import evenatrib from "../../example/dfa-even-a-tri-b.tmvdfa?raw";
 import adder from "../../example/dtm-binary-adder.tmvdtm?raw";
+import collatz from "../../example/dtm-collatz.tmvdtm?raw";
 import palindrome from "../../example/dtm-palindrome.tmvdtm?raw";
 import subsetsum from "../../example/dtm-subset-sum.tmvdtm?raw";
 import { decodeMachine } from "./components/machineFile.ts";
@@ -17,6 +18,7 @@ describe("example/ のサンプル機械", () => {
 		["accdfa.tmvdtm", accdfa, "dtm"],
 		["dtm-subset-sum.tmvdtm", subsetsum, "dtm"],
 		["dtm-binary-adder.tmvdtm", adder, "dtm"],
+		["dtm-collatz.tmvdtm", collatz, "dtm"],
 	])("%s が読み込める(kind=%s)", (name, text, kind) => {
 		const result = decodeMachine(text, "ex", name);
 		expect("machine" in result).toBe(true);
