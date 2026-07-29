@@ -83,6 +83,8 @@ export default function App() {
 	const newIdRef = useRef(0);
 	// ファイル読込エラーの表示(role=alert)。
 	const [loadError, setLoadError] = useState<string | null>(null);
+	// 操作板の「使い方」表示の開閉(既定は閉。狭いパネルを普段は塞がない)。
+	const [showHelp, setShowHelp] = useState(false);
 
 	const frame = useReplayStore(selectCurrentFrame);
 	const cursor = useReplayStore((s) => s.cursor);
@@ -462,6 +464,51 @@ export default function App() {
 							{loadError}
 						</div>
 					)}
+					{/* 使い方(既定は閉。クリックで開閉)。 */}
+					<div className="mt-1 border-gray-200 border-t pt-2 dark:border-gray-700">
+						<button
+							type="button"
+							className="flex w-full items-center gap-1 text-gray-500 text-xs hover:text-gray-700 dark:hover:text-gray-300"
+							aria-expanded={showHelp}
+							aria-controls="help-body"
+							onClick={() => setShowHelp((v) => !v)}
+						>
+							<span aria-hidden="true">{showHelp ? "▾" : "▸"}</span> 使い方
+						</button>
+						{showHelp && (
+							<div
+								id="help-body"
+								className="mt-1 flex flex-col gap-1 text-gray-600 text-xs leading-relaxed dark:text-gray-300"
+							>
+								<p>
+									<strong>機械</strong>:
+									上のリストで選択。「新規DFA/DTM」で作成、✕
+									で削除、「名前」で改名。
+								</p>
+								<p>
+									<strong>編集</strong>:
+									状態の追加・改名・削除や遷移表は左のエディタ。状態図は
+									<strong>状態から状態へドラッグ</strong>して遷移を追加。
+								</p>
+								<p>
+									<strong>実行</strong>:
+									下の「入力(テープ)」に語を入れ、「進む」で 1
+									ステップ、「再生」で連続(速度は
+									Hz)。「戻る」「最初へ」で前に戻れる。
+									記号をクリックすると入力に追記。
+								</p>
+								<p>
+									<strong>保存/読込</strong>: <code>.tmvdfa</code>(DFA)/{" "}
+									<code>.tmvdtm</code>(DTM)のテキストで保存・読込。
+								</p>
+								<p>
+									<strong>ヒント</strong>:
+									見出し(⠿)をドラッグでこのパネルを移動。 サンプルは{" "}
+									<code>example/</code> に。
+								</p>
+							</div>
+						)}
+					</div>
 				</div>
 			</div>
 

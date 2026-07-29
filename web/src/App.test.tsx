@@ -349,6 +349,25 @@ describe("App(再生 UI)", () => {
 		expect(screen.getByText(/ドラッグで遷移/)).toBeInTheDocument();
 	});
 
+	it("操作板の「使い方」は既定で閉じ、クリックで開閉する", () => {
+		render(<App />);
+		const toggle = screen.getByRole("button", { name: "使い方" });
+		// 既定は閉(説明文は出ていない)。
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+		expect(
+			screen.queryByText(/状態から状態へドラッグ/),
+		).not.toBeInTheDocument();
+		// クリックで開く。
+		fireEvent.click(toggle);
+		expect(toggle).toHaveAttribute("aria-expanded", "true");
+		expect(screen.getByText(/状態から状態へドラッグ/)).toBeInTheDocument();
+		// もう一度で閉じる。
+		fireEvent.click(toggle);
+		expect(
+			screen.queryByText(/状態から状態へドラッグ/),
+		).not.toBeInTheDocument();
+	});
+
 	it("機械の名前を変更できる", () => {
 		render(<App />);
 		const nameInput = screen.getByLabelText("名前") as HTMLInputElement;
