@@ -1,10 +1,12 @@
 import {
+	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
-import type { DisplayGraph } from "./specDraft.ts";
+import type { DisplayEdge, DisplayGraph } from "./specDraft.ts";
 
 interface Point {
 	x: number;
@@ -85,6 +87,103 @@ function clientToSvg(
 	};
 }
 
+// 1 本の遷移を描く(fired=true で青く強調)。key は呼び出し側が与える(静的辺と
+// 強調オーバーレイでキーを分け、SVG 直下での衝突を避ける)。
+function renderEdge(
+	key: string,
+	e: DisplayEdge,
+	pos: Map<string, Point>,
+	c: number,
+	fired: boolean,
+): ReactNode {
+	const a = pos.get(e.from);
+	const b = pos.get(e.to);
+	if (!a || !b) {
+		return null;
+	}
+	const geo = e.from === e.to ? selfLoop(a, c) : curve(a, b);
+	return (
+		<g key={key} data-fired={fired} data-invalid={!e.valid}>
+			<path
+				d={geo.d}
+				fill="none"
+				stroke="currentColor"
+				className={
+					fired ? "stroke-blue-500" : e.valid ? undefined : "stroke-red-500"
+				}
+				strokeWidth={fired ? 2.5 : 1.5}
+				strokeDasharray={e.valid ? undefined : "6 4"}
+				markerEnd={fired ? "url(#arrow-active)" : "url(#arrow)"}
+			/>
+			<text
+				x={geo.lx}
+				y={geo.ly}
+				textAnchor="middle"
+				dominantBaseline="middle"
+				className={
+					fired
+						? "fill-blue-600 font-bold font-mono text-[11px] dark:fill-blue-300"
+						: e.valid
+							? "fill-gray-600 font-mono text-[11px] dark:fill-gray-300"
+							: "fill-red-600 font-mono text-[11px] dark:fill-red-400"
+				}
+			>
+				{e.label}
+			</text>
+		</g>
+	);
+}
+
+// 1 個の状態ノードを描く(active=true で青く強調)。
+function renderNode(
+	key: string,
+	st: string,
+	p: Point,
+	accept: Set<string>,
+	active: boolean,
+): ReactNode {
+	return (
+		<g key={key} data-state={st} data-active={active}>
+			<circle
+				cx={p.x}
+				cy={p.y}
+				r={R_NODE}
+				className={
+					active
+						? "fill-blue-500 stroke-blue-600"
+						: "fill-white stroke-gray-400 dark:fill-gray-800 dark:stroke-gray-500"
+				}
+				strokeWidth={1.5}
+			/>
+			{accept.has(st) && (
+				<circle
+					cx={p.x}
+					cy={p.y}
+					r={R_NODE - 4}
+					fill="none"
+					className={
+						active ? "stroke-white" : "stroke-gray-400 dark:stroke-gray-500"
+					}
+					strokeWidth={1.5}
+				/>
+			)}
+			<text
+				x={p.x}
+				y={p.y}
+				textAnchor="middle"
+				dominantBaseline="central"
+				className={
+					active
+						? "fill-white font-mono text-sm"
+						: "fill-gray-700 font-mono text-sm dark:fill-gray-200"
+				}
+			>
+				{st}
+			</text>
+		</g>
+	);
+}
+
 export function AutomatonDiagram({
 	graph,
 	current,
@@ -105,43 +204,45 @@ export function AutomatonDiagram({
 	editable?: boolean;
 	onAddTransition?: (from: string, to: string) => void;
 }) {
-	const { states, accept, start, edges } = graph;
-	const firedKey = fired ? JSON.stringify([fired.from, fired.to]) : null;
-	const n = states.length;
-	// ラベル幅(11px monospace ≈ 6.6px/字)を余白に織り込み、側方ノードのまとめ
-	// ラベル(自己ループ含む)がキャンバス外へはみ出して切れないようにする。
-	const maxLabelLen = edges.reduce((m, e) => Math.max(m, e.label.length), 0);
-	const margin = 60 + (maxLabelLen * 6.6) / 2;
-	// 状態数に応じてキャンバスを広げる。N 個のノードが重ならない円周から必要半径を
-	// 求め、基準サイズ(少数なら一定=DFA/DTM で揃う)と大きい方を採る。半径 R は
-	// キャンバスからラベル余白を差し引いて逆算する。
-	const ringR = n <= 1 ? 0 : (n * (2 * R_NODE + NODE_GAP)) / (2 * Math.PI);
-	const size = Math.max(DIAGRAM_SIZE, 2 * (ringR + R_NODE + margin));
-	const c = size / 2;
-	const R = Math.max(40, c - R_NODE - margin);
-
-	const pos = new Map<string, Point>();
-	states.forEach((st, i) => {
-		if (n === 1) {
-			pos.set(st, { x: c, y: c });
-			return;
+	// レイアウト幾何は graph にのみ依存する。再生中(current/fired だけが変わる)は
+	// 再計算しないよう memo 化し、下の静的レイヤ memo と当たり判定で共有する。
+	const geom = useMemo(() => {
+		const { states, edges, start } = graph;
+		const n = states.length;
+		// ラベル幅(11px monospace ≈ 6.6px/字)を余白に織り込み、側方ノードのまとめ
+		// ラベル(自己ループ含む)がキャンバス外へはみ出して切れないようにする。
+		const maxLabelLen = edges.reduce((m, e) => Math.max(m, e.label.length), 0);
+		const margin = 60 + (maxLabelLen * 6.6) / 2;
+		// 状態数に応じてキャンバスを広げる。N 個のノードが重ならない円周から必要半径を
+		// 求め、基準サイズ(少数なら一定=DFA/DTM で揃う)と大きい方を採る。
+		const ringR = n <= 1 ? 0 : (n * (2 * R_NODE + NODE_GAP)) / (2 * Math.PI);
+		const size = Math.max(DIAGRAM_SIZE, 2 * (ringR + R_NODE + margin));
+		const c = size / 2;
+		const R = Math.max(40, c - R_NODE - margin);
+		const pos = new Map<string, Point>();
+		states.forEach((st, i) => {
+			if (n === 1) {
+				pos.set(st, { x: c, y: c });
+				return;
+			}
+			const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+			pos.set(st, { x: c + R * Math.cos(a), y: c + R * Math.sin(a) });
+		});
+		// 開始マーカー(外側からノードへ入る矢印)の向き。
+		const sp = pos.get(start) ?? { x: c, y: c };
+		let sox = sp.x - c;
+		let soy = sp.y - c;
+		const sol = Math.hypot(sox, soy);
+		if (sol < 1) {
+			sox = -1;
+			soy = 0;
+		} else {
+			sox /= sol;
+			soy /= sol;
 		}
-		const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
-		pos.set(st, { x: c + R * Math.cos(a), y: c + R * Math.sin(a) });
-	});
-
-	// 開始マーカー(外側からノードへ入る矢印)。
-	const sp = pos.get(start) ?? { x: c, y: c };
-	let sox = sp.x - c;
-	let soy = sp.y - c;
-	const sol = Math.hypot(sox, soy);
-	if (sol < 1) {
-		sox = -1;
-		soy = 0;
-	} else {
-		sox /= sol;
-		soy /= sol;
-	}
+		return { n, size, c, pos, sp, sox, soy };
+	}, [graph]);
+	const { n, size, c, pos, sp, sox, soy } = geom;
 
 	// --- pan / zoom(viewBox を操作。ライブラリ不要)---
 	const svgRef = useRef<SVGSVGElement>(null);
@@ -291,6 +392,30 @@ export function AutomatonDiagram({
 	};
 	const linkFromPos = link ? (pos.get(link.from) ?? null) : null;
 
+	// 静的レイヤ(全辺・全ノードを既定スタイルで)。graph にのみ依存するので memo 化し、
+	// current/fired だけが変わる再生中は React が丸ごと再調整をスキップする。
+	const staticEdges = useMemo(
+		() =>
+			graph.edges.map((e) =>
+				renderEdge(JSON.stringify([e.from, e.to]), e, pos, c, false),
+			),
+		[graph, pos, c],
+	);
+	const staticNodes = useMemo(
+		() =>
+			graph.states.map((st) => {
+				const p = pos.get(st);
+				return p ? renderNode(st, st, p, graph.accept, false) : null;
+			}),
+		[graph, pos],
+	);
+
+	// 強調オーバーレイ(現在ノード・発火辺)。毎ステップ変わるがごく少数なので軽い。
+	const firedEdge = fired
+		? graph.edges.find((e) => e.from === fired.from && e.to === fired.to)
+		: undefined;
+	const currentPos = pos.get(current);
+
 	return (
 		<div className="relative h-full w-full">
 			{/* 操作クラスタ(縦ズーム + 履歴トグル)。テープの上を避けて右上に置く。 */}
@@ -383,54 +508,15 @@ export function AutomatonDiagram({
 					markerEnd="url(#arrow)"
 				/>
 
-				{/* 遷移 */}
-				{edges.map((e) => {
-					const a = pos.get(e.from);
-					const b = pos.get(e.to);
-					if (!a || !b) {
-						return null;
-					}
-					const geo = e.from === e.to ? selfLoop(a, c) : curve(a, b);
-					const isFired = JSON.stringify([e.from, e.to]) === firedKey;
-					return (
-						<g
-							key={JSON.stringify([e.from, e.to])}
-							data-fired={isFired}
-							data-invalid={!e.valid}
-						>
-							<path
-								d={geo.d}
-								fill="none"
-								stroke="currentColor"
-								className={
-									isFired
-										? "stroke-blue-500"
-										: e.valid
-											? undefined
-											: "stroke-red-500"
-								}
-								strokeWidth={isFired ? 2.5 : 1.5}
-								strokeDasharray={e.valid ? undefined : "6 4"}
-								markerEnd={isFired ? "url(#arrow-active)" : "url(#arrow)"}
-							/>
-							<text
-								x={geo.lx}
-								y={geo.ly}
-								textAnchor="middle"
-								dominantBaseline="middle"
-								className={
-									isFired
-										? "fill-blue-600 font-bold font-mono text-[11px] dark:fill-blue-300"
-										: e.valid
-											? "fill-gray-600 font-mono text-[11px] dark:fill-gray-300"
-											: "fill-red-600 font-mono text-[11px] dark:fill-red-400"
-								}
-							>
-								{e.label}
-							</text>
-						</g>
-					);
-				})}
+				{/* 遷移(静的)→ 発火辺の強調(上に重ねる)→ ノード(静的)→ 現在状態の強調 */}
+				<g>{staticEdges}</g>
+				{firedEdge && <g>{renderEdge("hl-edge", firedEdge, pos, c, true)}</g>}
+				<g>{staticNodes}</g>
+				{currentPos && (
+					<g>
+						{renderNode("hl-node", current, currentPos, graph.accept, true)}
+					</g>
+				)}
 
 				{/* 作図中の一時線(状態間ドラッグで遷移を作る) */}
 				{link && linkFromPos && (
@@ -445,57 +531,6 @@ export function AutomatonDiagram({
 						markerEnd="url(#arrow-active)"
 					/>
 				)}
-
-				{/* 状態ノード */}
-				{states.map((st) => {
-					const p = pos.get(st);
-					if (!p) {
-						return null;
-					}
-					const active = st === current;
-					return (
-						<g key={st} data-state={st} data-active={active}>
-							<circle
-								cx={p.x}
-								cy={p.y}
-								r={R_NODE}
-								className={
-									active
-										? "fill-blue-500 stroke-blue-600"
-										: "fill-white stroke-gray-400 dark:fill-gray-800 dark:stroke-gray-500"
-								}
-								strokeWidth={1.5}
-							/>
-							{accept.has(st) && (
-								<circle
-									cx={p.x}
-									cy={p.y}
-									r={R_NODE - 4}
-									fill="none"
-									className={
-										active
-											? "stroke-white"
-											: "stroke-gray-400 dark:stroke-gray-500"
-									}
-									strokeWidth={1.5}
-								/>
-							)}
-							<text
-								x={p.x}
-								y={p.y}
-								textAnchor="middle"
-								dominantBaseline="central"
-								className={
-									active
-										? "fill-white font-mono text-sm"
-										: "fill-gray-700 font-mono text-sm dark:fill-gray-200"
-								}
-							>
-								{st}
-							</text>
-						</g>
-					);
-				})}
 			</svg>
 		</div>
 	);

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
 	addState,
 	type Draft,
@@ -12,7 +13,9 @@ import {
 // 変更は onChange で通知する(App がライブに spec へ反映)。状態は追加/改名/消去/
 // 初期・受理の指定ができる。使える記号(アルファベット/テープ記号)は遷移関数から
 // 自動導出して読み取り専用で表示する。error は App から受け取り role="alert" で表示。
-export function SpecEditor({
+// memo 化: 再生中は draft/isDfa/error/onChange が不変なので再描画をスキップする
+// (大きな機械では遷移表の行数が多く、毎ステップの再描画が重いため)。
+export const SpecEditor = memo(function SpecEditor({
 	draft,
 	isDfa,
 	error,
@@ -224,4 +227,4 @@ export function SpecEditor({
 			</button>
 		</div>
 	);
-}
+});
