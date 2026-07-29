@@ -388,8 +388,8 @@ export default function App() {
 							{machineList.length > 1 && (
 								<button
 									type="button"
-									aria-label="削除"
-									title={`${m.label} を削除`}
+									aria-label={`${m.label} を削除`}
+									title="削除"
 									className="shrink-0 rounded px-1.5 py-1 text-gray-400 text-sm hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/40"
 									onClick={() => deleteMachine(m.id)}
 								>
