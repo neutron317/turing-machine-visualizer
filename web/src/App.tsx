@@ -181,7 +181,7 @@ export default function App() {
 		setLoadError(null); // 新規作成したら読込エラー表示は消す
 	};
 
-	// --- ファイル保存/読込(できるだけ軽量な JSON) ---
+	// --- ファイル保存/読込(コンパクトなテキスト形式。詳細は machineFile.ts) ---
 	const fileRef = useRef<HTMLInputElement>(null);
 	const saveMachine = () => {
 		const text = encodeMachine({
@@ -189,7 +189,7 @@ export default function App() {
 			input: inputText,
 			spec: machine.spec,
 		});
-		downloadText(machineFileName(machine.label), text);
+		downloadText(machineFileName(machine.label, machine.kind), text);
 	};
 	const onLoadFile = async (e: ReactChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -410,7 +410,7 @@ export default function App() {
 						<input
 							ref={fileRef}
 							type="file"
-							accept="application/json,.json"
+							accept=".tmvdfa,.tmvdtm,.tm,application/json,.json"
 							className="hidden"
 							aria-label="機械ファイルを読み込み"
 							onChange={onLoadFile}

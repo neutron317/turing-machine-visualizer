@@ -28,36 +28,42 @@ describe("machineFile", () => {
 		}
 	});
 
-	it("軽量: 出力は空白のないミニファイ JSON・label を含まない", () => {
+	it("コンパクト形式: 先頭は d/t、パイプ区切り、JSON ではない", () => {
 		const text = encodeMachine({
 			kind: "dfa",
-			input: "a",
+			input: "aa",
 			spec: machines[0].spec,
 		});
 		expect(text).not.toContain("\n");
-		expect(text).not.toContain("label");
-		expect(text.startsWith('{"v":1')).toBe(true);
+		expect(text).not.toContain("{");
+		expect(text.startsWith("d|")).toBe(true);
 	});
 
-	it("壊れた JSON は error を返す", () => {
-		const res = decodeMachine("{not json", "x", "名前");
-		expect("error" in res && res.error).toMatch(/JSON/);
+	it("区切り文字を含む記号もエスケープで往復する(; , | \\)", () => {
+		const spec = {
+			states: ["q"],
+			tapeAlphabet: [";", ",", "|", "\\", "a"],
+			start: "q",
+			accept: ["q"],
+			transitions: [
+				{ from: "q", read: ";", to: "q", write: ",", move: "R" as const },
+				{ from: "q", read: "|", to: "q", write: "\\", move: "L" as const },
+				{ from: "q", read: "a", to: "q", write: null, move: "R" as const },
+			],
+		};
+		const text = encodeMachine({ kind: "dtm", input: ";|,", spec });
+		const res = decodeMachine(text, "x", "名前");
+		expect("machine" in res).toBe(true);
+		if ("machine" in res) {
+			expect(res.machine.input).toBe(";|,");
+			expect(res.machine.spec).toEqual(spec);
+		}
 	});
 
-	it("エンベロープ不正(必須欠落)は error を返す", () => {
-		const res = decodeMachine(
-			JSON.stringify({ v: 1, kind: "dfa" }),
-			"x",
-			"名前",
-		);
-		expect("error" in res).toBe(true);
-	});
-
-	it("古い label 付きファイルも読める(label は無視される)", () => {
+	it("旧 JSON 形式も読める(後方互換)", () => {
 		const text = JSON.stringify({
 			v: 1,
 			kind: "dfa",
-			label: "古い名前",
 			input: "a",
 			spec: machines[0].spec,
 		});
@@ -65,42 +71,42 @@ describe("machineFile", () => {
 		expect("machine" in res).toBe(true);
 		if ("machine" in res) {
 			expect(res.machine.label).toBe("ファイル名");
+			expect(res.machine.spec).toEqual(machines[0].spec);
 		}
 	});
 
-	it("保存ファイル名: 空/空白はフォールバック、無効文字は _ に", () => {
-		expect(machineFileName("even")).toBe("even.json");
-		expect(machineFileName("")).toBe("machine.json");
-		expect(machineFileName("   ")).toBe("machine.json");
-		expect(machineFileName("a/b:c")).toBe("a_b_c.json");
-		// スペースやハイフンは有効な文字なので残す(無効文字のみ置換)。
-		expect(machineFileName("DFA: x")).toBe("DFA_ x.json");
-		expect(machineFileName("even-a")).toBe("even-a.json");
+	it("壊れた JSON は error を返す", () => {
+		const res = decodeMachine("{not json", "x", "名前");
+		expect("error" in res && res.error).toMatch(/JSON/);
 	});
 
-	it("ファイル名 → 表示名: 末尾 .json を除く・空はフォールバック", () => {
-		expect(machineNameFromFile("even-a.json")).toBe("even-a");
+	it("フィールド数が不正なら error を返す", () => {
+		const res = decodeMachine("d|0,1|a", "x", "名前");
+		expect("error" in res).toBe(true);
+	});
+
+	it("保存ファイル名: 種別で拡張子を分ける(.tmvdfa/.tmvdtm)、無効文字は _ に", () => {
+		expect(machineFileName("even", "dfa")).toBe("even.tmvdfa");
+		expect(machineFileName("even", "dtm")).toBe("even.tmvdtm");
+		expect(machineFileName("", "dfa")).toBe("machine.tmvdfa");
+		expect(machineFileName("   ", "dtm")).toBe("machine.tmvdtm");
+		expect(machineFileName("a/b:c", "dfa")).toBe("a_b_c.tmvdfa");
+		expect(machineFileName("even-a", "dtm")).toBe("even-a.tmvdtm");
+	});
+
+	it("ファイル名 → 表示名: 既知拡張子(.tmvdfa/.tmvdtm/.tm/.json)を除く・空はフォールバック", () => {
+		expect(machineNameFromFile("even-a.tmvdfa")).toBe("even-a");
+		expect(machineNameFromFile("pal.tmvdtm")).toBe("pal");
+		expect(machineNameFromFile("old.json")).toBe("old");
 		expect(machineNameFromFile("even-a")).toBe("even-a");
-		expect(machineNameFromFile("my.dfa.json")).toBe("my.dfa");
-		expect(machineNameFromFile(".json")).toBe("machine");
-		expect(machineNameFromFile("DFA_3の倍数.json")).toBe("DFA_3の倍数");
+		expect(machineNameFromFile("my.dfa.tmvdfa")).toBe("my.dfa");
+		expect(machineNameFromFile(".tmvdtm")).toBe("machine");
+		expect(machineNameFromFile("DFA_3の倍数.tmvdfa")).toBe("DFA_3の倍数");
 	});
 
 	it("spec が契約に一致しないと error を返す", () => {
-		const bad = JSON.stringify({
-			v: 1,
-			kind: "dfa",
-			input: "",
-			// read が 2 文字で symbolSchema 違反。
-			spec: {
-				states: ["A"],
-				alphabet: ["ab"],
-				start: "A",
-				accept: [],
-				transitions: [{ from: "A", read: "ab", to: "A" }],
-			},
-		});
-		const res = decodeMachine(bad, "x", "名前");
+		// read が 2 文字で symbolSchema 違反。
+		const res = decodeMachine("d|A|ab|A||x|A,ab,A", "x", "名前");
 		expect("error" in res && res.error).toMatch(/DFA/);
 	});
 });
