@@ -313,6 +313,24 @@ export default function App() {
 		setLoadError(null); // 別機械へ移ったら読込エラー表示は消す
 	};
 
+	// 機械を一覧から削除する(余分に作った機械の掃除用)。選択中を消したら隣を選ぶ。
+	// 最後の 1 台は消さない(機械が 0 になるとアプリが成立しないため)。
+	const deleteMachine = (id: string) => {
+		if (machineList.length <= 1) {
+			return;
+		}
+		const idx = machineList.findIndex((m) => m.id === id);
+		const next = machineList.filter((m) => m.id !== id);
+		setMachineList(next);
+		if (id === selectedId) {
+			const pick = next[Math.min(idx, next.length - 1)];
+			setSelectedId(pick.id);
+			setInputText(pick.input);
+			setDraft(draftFromMachine(pick));
+			setLoadError(null);
+		}
+	};
+
 	const currentState = frame?.config.state ?? machine.spec.start;
 	// 入力(テープ)に使える記号: DFA は alphabet、DTM は tapeAlphabet(契約 §1)。
 	const usableSymbols =
@@ -354,19 +372,31 @@ export default function App() {
 				</div>
 				<div className="flex flex-col gap-1 p-3">
 					{machineList.map((m) => (
-						<button
-							key={m.id}
-							type="button"
-							aria-pressed={m.id === selectedId}
-							className={
-								m.id === selectedId
-									? "rounded bg-blue-500 px-2 py-1 text-left text-sm text-white"
-									: "rounded px-2 py-1 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-							}
-							onClick={() => selectMachine(m)}
-						>
-							{m.label}
-						</button>
+						<div key={m.id} className="flex items-center gap-1">
+							<button
+								type="button"
+								aria-pressed={m.id === selectedId}
+								className={
+									m.id === selectedId
+										? "min-w-0 flex-1 truncate rounded bg-blue-500 px-2 py-1 text-left text-sm text-white"
+										: "min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+								}
+								onClick={() => selectMachine(m)}
+							>
+								{m.label}
+							</button>
+							{machineList.length > 1 && (
+								<button
+									type="button"
+									aria-label={`${m.label} を削除`}
+									title="削除"
+									className="shrink-0 rounded px-1.5 py-1 text-gray-400 text-sm hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/40"
+									onClick={() => deleteMachine(m.id)}
+								>
+									✕
+								</button>
+							)}
+						</div>
 					))}
 					<label className="mt-1 flex items-center gap-1 text-xs">
 						<span className="shrink-0 text-gray-500">名前</span>

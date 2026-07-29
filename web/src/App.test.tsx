@@ -1,7 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App.tsx";
+import { machines } from "./fixtures/machines.ts";
 import { useReplayStore } from "./store/replay.ts";
+
+// プリセットの表示名(機械選択の厳密名クエリに使う。削除ボタンの `… を削除` と衝突しない)。
+const DFA_NAME = machines[0].label; // "DFA: 偶数個の a"
+const DTM_NAME = machines[1].label; // "DTM: aⁿbⁿcⁿ"
 
 // api/step をモックし、機械ごとに最初の 1 ステップを返す(ネットワーク不要)。
 vi.mock("./api/step.ts", () => ({
@@ -59,7 +64,7 @@ describe("App(再生 UI)", () => {
 
 	it("DTM を選ぶとテープを表示する", () => {
 		render(<App />);
-		fireEvent.click(screen.getByRole("button", { name: /DTM:/ }));
+		fireEvent.click(screen.getByRole("button", { name: DTM_NAME }));
 		expect(screen.getByText(/状態: P0/)).toBeInTheDocument();
 		expect(screen.getByText(/ヘッド/)).toBeInTheDocument();
 	});
@@ -79,7 +84,7 @@ describe("App(再生 UI)", () => {
 		render(<App />);
 		const input = () => screen.getByLabelText(/入力/) as HTMLInputElement;
 		fireEvent.change(input(), { target: { value: "aaa" } });
-		fireEvent.click(screen.getByRole("button", { name: /DTM:/ }));
+		fireEvent.click(screen.getByRole("button", { name: DTM_NAME }));
 		expect(input().value).toBe("abc"); // DTM の既定入力
 	});
 
@@ -134,7 +139,7 @@ describe("App(再生 UI)", () => {
 
 	it("DTM では tapeAlphabet の記号を表示し、末尾へ追記する", () => {
 		render(<App />);
-		fireEvent.click(screen.getByRole("button", { name: /DTM:/ }));
+		fireEvent.click(screen.getByRole("button", { name: DTM_NAME }));
 		// anbncn の tapeAlphabet は a,b,c,X,Y,Z。
 		for (const s of ["a", "b", "c", "X", "Y", "Z"]) {
 			expect(
@@ -167,6 +172,35 @@ describe("App(再生 UI)", () => {
 		expect(screen.getByText(/テープ記号/)).toBeInTheDocument();
 	});
 
+	it("機械を削除でき、選択が隣へ追従し、最後の1台は削除ボタンが出ない", async () => {
+		render(<App />);
+		// 新規作成した機械(=選択中)を削除 → 一覧から消え、選択が隣(anbncn)へ追従。
+		fireEvent.click(screen.getByRole("button", { name: "新規DFA" }));
+		await screen.findByRole("button", { name: "新規DFA 1" });
+		fireEvent.click(screen.getByRole("button", { name: "新規DFA 1 を削除" }));
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("button", { name: "新規DFA 1" }),
+			).not.toBeInTheDocument(),
+		);
+		// 選択が anbncn(DTM)へ追従: 初期状態 P0・既定入力 abc になる(index 0 固定だと Even/aa)。
+		expect(screen.getByText(/状態: P0/)).toBeInTheDocument();
+		expect((screen.getByLabelText(/入力/) as HTMLInputElement).value).toBe(
+			"abc",
+		);
+		// プリセット2台を1台まで減らすと、最後の削除ボタンは出ない。
+		fireEvent.click(screen.getByRole("button", { name: `${DFA_NAME} を削除` }));
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("button", { name: DFA_NAME }),
+			).not.toBeInTheDocument(),
+		);
+		// 残り1台には削除ボタンが無い。
+		expect(
+			screen.queryByRole("button", { name: /を削除$/ }),
+		).not.toBeInTheDocument();
+	});
+
 	it("状態名の変更は機械へライブ反映され、切替後も残る", () => {
 		render(<App />);
 		// 先頭状態(Even)を Z に改名。
@@ -174,8 +208,8 @@ describe("App(再生 UI)", () => {
 			target: { value: "Z" },
 		});
 		// 別機械へ切替 → 戻る。
-		fireEvent.click(screen.getByRole("button", { name: /DTM:/ }));
-		fireEvent.click(screen.getByRole("button", { name: /DFA:/ }));
+		fireEvent.click(screen.getByRole("button", { name: DTM_NAME }));
+		fireEvent.click(screen.getByRole("button", { name: DFA_NAME }));
 		expect((screen.getByLabelText("state 0") as HTMLInputElement).value).toBe(
 			"Z",
 		);
@@ -333,7 +367,7 @@ describe("App(再生 UI)", () => {
 		// 初期は DFA の Even が active。
 		expect(activeState()).toBe("Even");
 		// DTM に切替 → P0 が active。
-		fireEvent.click(screen.getByRole("button", { name: /DTM:/ }));
+		fireEvent.click(screen.getByRole("button", { name: DTM_NAME }));
 		expect(activeState()).toBe("P0");
 		// 進むと状態図の現在状態が追従(P0 -> P1、取得は非同期)。
 		fireEvent.click(screen.getByRole("button", { name: /進む/ }));
