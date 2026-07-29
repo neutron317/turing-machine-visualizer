@@ -201,6 +201,21 @@ describe("App(再生 UI)", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("再生速度は Hz 表示で、高速段階も選べる", () => {
+		render(<App />);
+		const sel = screen.getByRole("combobox", {
+			name: "速度",
+		}) as HTMLSelectElement;
+		// 既定は 2 Hz。
+		expect(sel.value).toBe("2");
+		// 表示は「N Hz」。高速段階(64 Hz)の選択肢がある。
+		expect(screen.getByRole("option", { name: "2 Hz" })).toBeInTheDocument();
+		expect(screen.getByRole("option", { name: "64 Hz" })).toBeInTheDocument();
+		// 選ぶと store の speed(1 秒あたりステップ数)が更新される。
+		fireEvent.change(sel, { target: { value: "32" } });
+		expect(useReplayStore.getState().speed).toBe(32);
+	});
+
 	it("状態名の変更は機械へライブ反映され、切替後も残る", () => {
 		render(<App />);
 		// 先頭状態(Even)を Z に改名。

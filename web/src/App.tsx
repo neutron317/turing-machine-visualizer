@@ -34,7 +34,9 @@ import {
 	useReplayStore,
 } from "./store/replay.ts";
 
-const SPEEDS = [1, 2, 4, 8];
+// 再生速度の選択肢(Hz = 1 秒あたりのステップ数)。ACCDFA 等は総ステップが多いので
+// 高速段階も用意する(実効速度はネットワーク往復で頭打ちになりうる)。
+const SPEEDS = [1, 2, 4, 8, 16, 32, 64];
 // 遷移履歴ドロワーの幅(px)。状態図の操作クラスタはこの分だけ左へ寄せる。
 const HISTORY_W = 288;
 // 左固定パネル(遷移関数エディタ)の幅(px)。
@@ -519,7 +521,7 @@ export default function App() {
 							>
 								{SPEEDS.map((s) => (
 									<option key={s} value={s}>
-										{s}x
+										{s} Hz
 									</option>
 								))}
 							</select>
