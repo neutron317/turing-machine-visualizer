@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App.tsx";
 import { useReplayStore } from "./store/replay.ts";
@@ -165,6 +171,35 @@ describe("App(再生 UI)", () => {
 		expect(screen.getByText(/状態: q0/)).toBeInTheDocument();
 		// DTM は「テープ記号」一覧を持つ(DFA は「アルファベット」)。
 		expect(screen.getByText(/テープ記号/)).toBeInTheDocument();
+	});
+
+	it("余分に作った機械を削除でき、最後の1台は削除ボタンが出ない", async () => {
+		render(<App />);
+		// 各機械行の「削除」ボタン(行内で特定する)。
+		const delBtn = (name: string) => {
+			const row = screen
+				.getByRole("button", { name })
+				.closest("div") as HTMLElement;
+			return within(row).getByRole("button", { name: "削除" });
+		};
+		// 新規作成した機械を削除 → 一覧から消える。
+		fireEvent.click(screen.getByRole("button", { name: "新規DFA" }));
+		await screen.findByRole("button", { name: "新規DFA 1" });
+		fireEvent.click(delBtn("新規DFA 1"));
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("button", { name: "新規DFA 1" }),
+			).not.toBeInTheDocument(),
+		);
+		// プリセット2台を1台まで減らすと、最後の削除ボタンは出ない。
+		fireEvent.click(delBtn("DFA: 偶数個の a"));
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("button", { name: "DFA: 偶数個の a" }),
+			).not.toBeInTheDocument(),
+		);
+		// 残り1台には削除ボタンが無い。
+		expect(screen.queryAllByRole("button", { name: "削除" })).toHaveLength(0);
 	});
 
 	it("状態名の変更は機械へライブ反映され、切替後も残る", () => {
