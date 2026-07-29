@@ -1,0 +1,66 @@
+# 静的サイト(web/)を GitHub Pages へデプロイする。1 ステップ実行はブラウザ内で
+# 完結する(サーバ不要)ため、ビルドした SPA をそのまま配信するだけでよい。
+#
+# ビルドは CI と同じコンテナ + make(make web-build → web/dist)で行い、開発環境と
+# 差が出ないようにする。dist は .:/work マウントでホスト側 web/dist に出力される。
+#
+# 初回のみ、リポジトリの Settings → Pages → Build and deployment → Source を
+# 「GitHub Actions」に設定する必要がある(未設定だと deploy ジョブが失敗する)。
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Pages へのデプロイに必要な権限。
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時実行は 1 つに絞る(進行中のデプロイはキャンセル)。
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Buildx をセットアップ
+        uses: docker/setup-buildx-action@v3
+
+      - name: web イメージをビルド(GHA レイヤキャッシュで依存を再利用)
+        uses: docker/bake-action@v5
+        with:
+          files: docker-compose.yml
+          targets: web
+          load: true
+          set: |
+            *.cache-from=type=gha,scope=web
+            *.cache-to=type=gha,mode=max,scope=web
+
+      - name: 静的サイトをビルド(web/dist)
+        run: make web-build
+
+      - name: Pages を設定
+        uses: actions/configure-pages@v5
+
+      - name: 成果物をアップロード
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Pages へデプロイ
+        id: deployment
+        uses: actions/deploy-pages@v4
