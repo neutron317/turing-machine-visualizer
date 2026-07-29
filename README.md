@@ -74,3 +74,12 @@ DFA / 決定性チューリング機械(DTM)が動く様子を、**状態遷移�
 `web/` をビルドして GitHub Pages へ自動デプロイする。**初回のみ**リポジトリの
 **Settings → Pages → Build and deployment → Source** を「**GitHub Actions**」に設定する
 (未設定だとデプロイジョブが失敗する)。以降は push で自動更新される。
+
+## ライセンス
+
+[MIT License](LICENSE)。© 2026 neutron317。
+
+参照実装の Haskell エンジンは同じ作者の
+[`neutron317/D-Turing-Machine-made-by-haskell`](https://github.com/neutron317/D-Turing-Machine-made-by-haskell)
+(submodule `engine/vendor/dtm-engine`)。npm 依存は各パッケージのライセンス(いずれも
+MIT 等の寛容なライセンス)に従う。
