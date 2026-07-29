@@ -1,0 +1,1 @@
+t|fL,fRa,fRb,cRa,cRb,ret,ACCEPT,REJECT|a,b,x,y|fL|ACCEPT|abba|fL,x,fL,x,R;fL,a,fRa,x,R;fL,b,fRb,x,R;fL,y,ACCEPT,y,R;fL,,ACCEPT,,R;fRa,a,fRa,a,R;fRa,b,fRa,b,R;fRa,y,cRa,y,L;fRa,,cRa,,L;fRb,a,fRb,a,R;fRb,b,fRb,b,R;fRb,y,cRb,y,L;fRb,,cRb,,L;cRa,a,ret,y,L;cRa,b,REJECT,b,L;cRa,x,ACCEPT,x,R;cRb,b,ret,y,L;cRb,a,REJECT,a,L;cRb,x,ACCEPT,x,R;ret,a,ret,a,L;ret,b,ret,b,L;ret,x,fL,x,R

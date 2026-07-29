@@ -410,7 +410,7 @@ export default function App() {
 						<input
 							ref={fileRef}
 							type="file"
-							accept="application/json,.json"
+							accept=".tm,application/json,.json"
 							className="hidden"
 							aria-label="機械ファイルを読み込み"
 							onChange={onLoadFile}
