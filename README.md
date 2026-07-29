@@ -68,6 +68,8 @@ DFA / 決定性チューリング機械(DTM)が動く様子を、**状態遷移�
 - `make web-build` — 本番ビルド(`web/dist/`)
 - `make engine-test` — 参照実装(Haskell)のテスト(ゴールデントレース再現含む)
 
+ブランチ運用(`main` / `dev` / `feat/*`)・リリース・保守の手順は [`docs/branching.md`](docs/branching.md)。
+
 ## 公開(GitHub Pages)
 
 `main` への push で [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) が
