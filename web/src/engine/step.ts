@@ -1,8 +1,10 @@
 import type {
 	DFAConfig,
 	DFASpec,
+	DFATrans,
 	DTMConfig,
 	DTMSpec,
+	DTMTrans,
 	FiredDTM,
 	StepDFA,
 	StepDTM,
@@ -13,8 +15,30 @@ import type {
 // させた(サーバ不要=静的ホスト・ローカルで動く、往復が無く高速)。意味論は engine/
 // (Haskell)と一致し、fixtures/traces のゴールデントレースで回帰検証する。
 //
-// 決定性の前提: アプリは非決定的な遷移(同一 (from, read) の重複)を実行から除外する
-// ため、各 (from, read) に対する遷移は高々 1 本。よって最初に一致した遷移を採用する。
+// 遷移の選び方: 決定的な機械では各 (from, read) の遷移は高々 1 本。ただし重複があっても
+// Haskell 版(Map.fromList=後勝ち)と一致するよう、TS でも「最後に一致した遷移」を採る。
+function lastDfaTrans(
+	spec: DFASpec,
+	from: string,
+	read: string,
+): DFATrans | undefined {
+	let hit: DFATrans | undefined;
+	for (const tr of spec.transitions) {
+		if (tr.from === from && tr.read === read) hit = tr;
+	}
+	return hit;
+}
+function lastDtmTrans(
+	spec: DTMSpec,
+	from: string,
+	read: string | null,
+): DTMTrans | undefined {
+	let hit: DTMTrans | undefined;
+	for (const tr of spec.transitions) {
+		if (tr.from === from && tr.read === read) hit = tr;
+	}
+	return hit;
+}
 
 // DFA を 1 ステップ進める。
 // - rest が空 → terminal。state ∈ accept なら accept、さもなくば reject。
@@ -27,7 +51,7 @@ export function stepDfa(spec: DFASpec, config: DFAConfig): StepDFA {
 		return { status: accepted ? "accept" : "reject", config, fired: null };
 	}
 	const sym = rest[0];
-	const t = spec.transitions.find((tr) => tr.from === state && tr.read === sym);
+	const t = lastDfaTrans(spec, state, sym);
 	if (!t) {
 		return { status: "reject", config, fired: null };
 	}
@@ -50,9 +74,7 @@ export function stepDtm(spec: DTMSpec, config: DTMConfig): StepDTM {
 	if (spec.accept.includes(state)) {
 		return { status: "accept", config, fired: null };
 	}
-	const t = spec.transitions.find(
-		(tr) => tr.from === state && tr.read === head,
-	);
+	const t = lastDtmTrans(spec, state, head);
 	if (!t) {
 		return { status: "reject", config, fired: null };
 	}

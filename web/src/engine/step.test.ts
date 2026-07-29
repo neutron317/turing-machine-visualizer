@@ -100,3 +100,76 @@ describe("client-side step: example 機械の判定", () => {
 		expect(runDtm(s, "101+11")).toBe("accept");
 	});
 });
+
+// ゴールデントレースが通らない周辺経路(左端行き詰まり・遷移なし・重複遷移の tie-break)を
+// 直接ユニット検証する。特に tie-break は Haskell(Map.fromList=後勝ち)との一致が要。
+describe("client-side step: 境界・tie-break の直接検証", () => {
+	it("DTM: 左端で左移動しようとすると reject(config 据え置き・書込なし)", () => {
+		const spec: DTMSpec = {
+			states: ["q"],
+			tapeAlphabet: ["a", "b"],
+			start: "q",
+			accept: [],
+			// head=a で左移動を指示するが left は空 → 行き詰まり。書込 b も反映されない。
+			transitions: [{ from: "q", read: "a", to: "q", write: "b", move: "L" }],
+		};
+		const config: DTMConfig = { state: "q", left: [], head: "a", right: [] };
+		expect(stepDtm(spec, config)).toEqual({
+			status: "reject",
+			config,
+			fired: null,
+		});
+	});
+
+	it("DTM: (state, head) に遷移が無ければ reject", () => {
+		const spec: DTMSpec = {
+			states: ["q"],
+			tapeAlphabet: ["a"],
+			start: "q",
+			accept: [],
+			transitions: [],
+		};
+		const config: DTMConfig = { state: "q", left: [], head: "a", right: [] };
+		expect(stepDtm(spec, config).status).toBe("reject");
+	});
+
+	it("DFA: 遷移が無ければ reject(行き詰まり)", () => {
+		const spec: DFASpec = {
+			states: ["q"],
+			alphabet: ["a"],
+			start: "q",
+			accept: ["q"],
+			transitions: [],
+		};
+		expect(stepDfa(spec, { state: "q", rest: ["a"] }).status).toBe("reject");
+	});
+
+	it("DFA: 重複 (from, read) は後勝ち(Haskell Map.fromList と一致)", () => {
+		const spec: DFASpec = {
+			states: ["q", "x", "y"],
+			alphabet: ["a"],
+			start: "q",
+			accept: [],
+			transitions: [
+				{ from: "q", read: "a", to: "x" },
+				{ from: "q", read: "a", to: "y" }, // 後勝ち → y へ
+			],
+		};
+		expect(stepDfa(spec, { state: "q", rest: ["a"] }).config.state).toBe("y");
+	});
+
+	it("DTM: 重複 (from, head) は後勝ち", () => {
+		const spec: DTMSpec = {
+			states: ["q", "x", "y"],
+			tapeAlphabet: ["a"],
+			start: "q",
+			accept: [],
+			transitions: [
+				{ from: "q", read: "a", to: "x", write: "a", move: "R" },
+				{ from: "q", read: "a", to: "y", write: "a", move: "R" }, // 後勝ち
+			],
+		};
+		const config: DTMConfig = { state: "q", left: [], head: "a", right: [] };
+		expect(stepDtm(spec, config).config.state).toBe("y");
+	});
+});

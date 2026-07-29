@@ -7,9 +7,6 @@
 
 COMPOSE := docker compose
 PORT ?= 3000
-# web-dev の /api プロキシ先。web はコンテナ内で動くため、ホストで公開した
-# engine(make engine-serve)へは host.docker.internal 経由で届く。
-API_TARGET ?= http://host.docker.internal:3000
 
 .PHONY: help engine-image engine-build engine-test engine-sh engine-serve engine-fmt engine-fmt-check engine-lint web-image web-install web-dev web-build web-typecheck web-test web-check web-fix ci
 
@@ -47,8 +44,8 @@ web-image: ## web の Docker イメージをビルド
 web-install: ## web の依存をインストール(node_modules ボリュームを更新)
 	$(COMPOSE) run --rm web pnpm install
 
-web-dev: ## web 開発サーバ(http://localhost:5173。/api は API_TARGET へプロキシ)
-	$(COMPOSE) run --rm -e API_TARGET=$(API_TARGET) -p 5173:5173 web pnpm dev --host
+web-dev: ## web 開発サーバ(http://localhost:5173。1ステップ実行はブラウザ内で完結・サーバ不要)
+	$(COMPOSE) run --rm -p 5173:5173 web pnpm dev --host
 
 web-build: ## web を本番ビルド(tsc -b && vite build)
 	$(COMPOSE) run --rm web pnpm build
