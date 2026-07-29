@@ -85,21 +85,23 @@ describe("machineFile", () => {
 		expect("error" in res).toBe(true);
 	});
 
-	it("保存ファイル名: 空/空白はフォールバック、無効文字は _ に、拡張子 .tm", () => {
-		expect(machineFileName("even")).toBe("even.tm");
-		expect(machineFileName("")).toBe("machine.tm");
-		expect(machineFileName("   ")).toBe("machine.tm");
-		expect(machineFileName("a/b:c")).toBe("a_b_c.tm");
-		expect(machineFileName("even-a")).toBe("even-a.tm");
+	it("保存ファイル名: 種別で拡張子を分ける(.tmvdfa/.tmvdtm)、無効文字は _ に", () => {
+		expect(machineFileName("even", "dfa")).toBe("even.tmvdfa");
+		expect(machineFileName("even", "dtm")).toBe("even.tmvdtm");
+		expect(machineFileName("", "dfa")).toBe("machine.tmvdfa");
+		expect(machineFileName("   ", "dtm")).toBe("machine.tmvdtm");
+		expect(machineFileName("a/b:c", "dfa")).toBe("a_b_c.tmvdfa");
+		expect(machineFileName("even-a", "dtm")).toBe("even-a.tmvdtm");
 	});
 
-	it("ファイル名 → 表示名: 末尾 .tm / .json を除く・空はフォールバック", () => {
-		expect(machineNameFromFile("even-a.tm")).toBe("even-a");
+	it("ファイル名 → 表示名: 既知拡張子(.tmvdfa/.tmvdtm/.tm/.json)を除く・空はフォールバック", () => {
+		expect(machineNameFromFile("even-a.tmvdfa")).toBe("even-a");
+		expect(machineNameFromFile("pal.tmvdtm")).toBe("pal");
 		expect(machineNameFromFile("old.json")).toBe("old");
 		expect(machineNameFromFile("even-a")).toBe("even-a");
-		expect(machineNameFromFile("my.dfa.tm")).toBe("my.dfa");
-		expect(machineNameFromFile(".tm")).toBe("machine");
-		expect(machineNameFromFile("DFA_3の倍数.tm")).toBe("DFA_3の倍数");
+		expect(machineNameFromFile("my.dfa.tmvdfa")).toBe("my.dfa");
+		expect(machineNameFromFile(".tmvdtm")).toBe("machine");
+		expect(machineNameFromFile("DFA_3の倍数.tmvdfa")).toBe("DFA_3の倍数");
 	});
 
 	it("spec が契約に一致しないと error を返す", () => {

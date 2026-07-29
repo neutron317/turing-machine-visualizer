@@ -189,7 +189,7 @@ export default function App() {
 			input: inputText,
 			spec: machine.spec,
 		});
-		downloadText(machineFileName(machine.label), text);
+		downloadText(machineFileName(machine.label, machine.kind), text);
 	};
 	const onLoadFile = async (e: ReactChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -410,7 +410,7 @@ export default function App() {
 						<input
 							ref={fileRef}
 							type="file"
-							accept=".tm,application/json,.json"
+							accept=".tmvdfa,.tmvdtm,.tm,application/json,.json"
 							className="hidden"
 							aria-label="機械ファイルを読み込み"
 							onChange={onLoadFile}

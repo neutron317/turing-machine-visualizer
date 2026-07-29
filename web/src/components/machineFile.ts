@@ -93,15 +93,17 @@ export function encodeMachine(m: {
 }
 
 // 表示名から安全な保存ファイル名を作る。空白のみ/空はフォールバックし、ファイル名に
-// 使えない文字は _ へ置換する。拡張子は .tm。
-export function machineFileName(name: string): string {
+// 使えない文字は _ へ置換する。拡張子は種別で分ける: DFA=.tmvdfa / DTM=.tmvdtm。
+export function machineFileName(name: string, kind: Kind): string {
 	const base = name.trim().replace(/[\\/:*?"<>|]/g, "_");
-	return `${base || "machine"}.tm`;
+	const ext = kind === "dfa" ? "tmvdfa" : "tmvdtm";
+	return `${base || "machine"}.${ext}`;
 }
 
-// 読み込んだファイル名から機械の表示名を作る。末尾の .tm / .json を除き、空はフォールバック。
+// 読み込んだファイル名から機械の表示名を作る。末尾の既知拡張子(.tmvdfa/.tmvdtm、
+// 旧 .tm/.json)を除き、空はフォールバック。
 export function machineNameFromFile(filename: string): string {
-	const base = filename.replace(/\.(tm|json)$/i, "").trim();
+	const base = filename.replace(/\.(tmvdfa|tmvdtm|tm|json)$/i, "").trim();
 	return base || "machine";
 }
 
