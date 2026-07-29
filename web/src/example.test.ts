@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import accdfa from "../../example/accdfa.json?raw";
+import accdfaJson from "../../example/accdfa-json.json?raw";
 import div3 from "../../example/dfa-divisible-by-3.json?raw";
 import palindrome from "../../example/dtm-palindrome.json?raw";
 import { decodeMachine } from "./components/machineFile.ts";
@@ -11,6 +12,7 @@ describe("example/ のサンプル機械", () => {
 		["dfa-divisible-by-3.json", div3, "dfa"],
 		["dtm-palindrome.json", palindrome, "dtm"],
 		["accdfa.json", accdfa, "dtm"],
+		["accdfa-json.json", accdfaJson, "dtm"],
 	])("%s が読み込める(kind=%s)", (name, text, kind) => {
 		const result = decodeMachine(text, "ex", name);
 		expect("machine" in result).toBe(true);
