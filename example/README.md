@@ -1,8 +1,9 @@
 # example — サンプル機械
 
 このアプリの「読込」ボタンで開ける機械(DFA / DTM)のサンプルです。いずれも
-`{ v, kind, label, input, spec }` エンベロープの JSON で、`spec` は契約
-(`docs/contract.md`)に従います。読み込んだら「再生」で実行できます。
+`{ v, kind, input, spec }` エンベロープの JSON で、`spec` は契約
+(`docs/contract.md`)に従います。読み込んだら「再生」で実行できます。表示名は
+ファイル名(拡張子を除く)から付きます。
 
 ## dfa-divisible-by-3.json — DFA(正則言語の例)
 2進数(MSB 先頭)が **3 の倍数**かを判定する DFA。状態 `r0/r1/r2` が「これまで

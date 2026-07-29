@@ -1,7 +1,6 @@
 {
 	"v": 1,
 	"kind": "dtm",
-	"label": "DTM: 回文(palindrome)",
 	"input": "abba",
 	"spec": {
 		"states": [

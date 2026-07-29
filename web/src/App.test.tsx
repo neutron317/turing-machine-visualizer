@@ -215,7 +215,6 @@ describe("App(再生 UI)", () => {
 		const encoded = JSON.stringify({
 			v: 1,
 			kind: "dfa",
-			label: "読込テスト",
 			input: "ab",
 			spec: {
 				states: ["S"],
@@ -225,7 +224,10 @@ describe("App(再生 UI)", () => {
 				transitions: [],
 			},
 		});
-		const file = new File([encoded], "m.json", { type: "application/json" });
+		// 表示名はファイル名(拡張子を除く)から付く。
+		const file = new File([encoded], "読込テスト.json", {
+			type: "application/json",
+		});
 		fireEvent.change(screen.getByLabelText("機械ファイルを読み込み"), {
 			target: { files: [file] },
 		});
@@ -251,7 +253,6 @@ describe("App(再生 UI)", () => {
 		const encoded = JSON.stringify({
 			v: 1,
 			kind: "dfa",
-			label: "再読込",
 			input: "",
 			spec: {
 				states: ["S"],
@@ -265,12 +266,12 @@ describe("App(再生 UI)", () => {
 			"機械ファイルを読み込み",
 		) as HTMLInputElement;
 		fireEvent.change(input, {
-			target: { files: [new File([encoded], "m.json")] },
+			target: { files: [new File([encoded], "再読込.json")] },
 		});
 		await screen.findByRole("button", { name: "再読込" });
 		expect(input.value).toBe(""); // 再選択できるようクリアされる
 		fireEvent.change(input, {
-			target: { files: [new File([encoded], "m.json")] },
+			target: { files: [new File([encoded], "再読込.json")] },
 		});
 		await waitFor(() =>
 			expect(screen.getAllByRole("button", { name: "再読込" })).toHaveLength(2),

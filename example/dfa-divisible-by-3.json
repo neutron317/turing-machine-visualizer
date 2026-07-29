@@ -1,7 +1,6 @@
 {
 	"v": 1,
 	"kind": "dfa",
-	"label": "DFA: 2進数が3の倍数",
 	"input": "110",
 	"spec": {
 		"states": [
