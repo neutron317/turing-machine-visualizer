@@ -285,23 +285,29 @@ export default function App() {
 	}, [machine.kind, machine.spec, inputText, startRun]);
 
 	// 自動再生。各ステップ(ネットワーク取得を含む)の完了を待ってから次を予約する
-	// ことで、遅い応答でもリクエストが積み重ならないようにする。
+	// ことで、遅い応答でもリクエストが積み重ならないようにする。目標周期は 1000/speed ms
+	// だが、ステップ自体に要した時間を差し引いて次を予約する(往復時間を上乗せしない)。
+	// これで実効レートが指定 Hz に近づく(1ステップ所要が 1000/speed を超える場合は
+	// 待ち 0 = 出せる最速)。
 	useEffect(() => {
 		if (!playing) {
 			return;
 		}
 		let cancelled = false;
 		let timer: ReturnType<typeof setTimeout>;
+		const period = 1000 / speed;
 		const tick = async () => {
+			const start = performance.now();
 			await useReplayStore.getState().stepForward();
 			if (cancelled) {
 				return;
 			}
 			if (useReplayStore.getState().playing) {
-				timer = setTimeout(tick, 1000 / speed);
+				const wait = Math.max(0, period - (performance.now() - start));
+				timer = setTimeout(tick, wait);
 			}
 		};
-		timer = setTimeout(tick, 1000 / speed);
+		timer = setTimeout(tick, period);
 		return () => {
 			cancelled = true;
 			clearTimeout(timer);
