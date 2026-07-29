@@ -181,7 +181,7 @@ export default function App() {
 		setLoadError(null); // 新規作成したら読込エラー表示は消す
 	};
 
-	// --- ファイル保存/読込(できるだけ軽量な JSON) ---
+	// --- ファイル保存/読込(コンパクトなテキスト形式。詳細は machineFile.ts) ---
 	const fileRef = useRef<HTMLInputElement>(null);
 	const saveMachine = () => {
 		const text = encodeMachine({
