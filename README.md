@@ -1,56 +1,75 @@
 # turing-machine-visualizer
 
-DFA / DTM(決定性チューリング機械)が動く様子を眺めるための Web アプリ。
+DFA / 決定性チューリング機械(DTM)が動く様子を、**状態遷移図**と**テープ**のアニメーション
+で眺める Web アプリ。機械をブラウザで定義・編集し、入力を与えて 1 ステップずつ、あるいは
+連続再生して挙動を観察できる。**ブラウザだけで完結し、サーバは不要**(公開版でもローカルでも同じ)。
 
-機械をブラウザで定義・編集し、入力を与えて 1 ステップずつ実行させ、状態遷移図(DFA)やテープ(DTM)のアニメーションで挙動を観察できる。判定ロジックは既存の Haskell 実装 [`neutron317/D-Turing-Machine-made-by-haskell`](https://github.com/neutron317/D-Turing-Machine-made-by-haskell) を活用する。
+🔗 **公開版**: https://neutron317.github.io/turing-machine-visualizer/
 
-## 仕組み(概要)
+## 使い方
 
-- **サーバ(Haskell)はステートレスな「1 ステップ関数」**。現在のコンフィグを受け取り、1 ステップだけ進めて返す。
-- **フロント(React)は「トレースの再生機」**。進めたコンフィグを履歴に貯め、前後スクラブ・速度変更・一時停止で眺める。無限に動く機械も追える。
+- **機械を選ぶ / 作る**: 左のリストから選択。「新規作成」で DFA / DTM を追加でき、複数を保持・
+  切り替え・削除できる。
+- **定義を編集**: 状態・遷移表を直接編集。状態遷移図を**クリックで状態追加・ドラッグで遷移追加**
+  もできる。使える記号(アルファベット / テープ記号)は遷移から自動導出される。
+- **実行して眺める**: 入力語を入れて「1 ステップ」または「再生(▶)」。速度は **Hz**(1〜64)で
+  調整でき、前後にスクラブ・一時停止できる。停止しない機械もそのまま追える。
+- **保存 / 読込**: 機械を軽量テキスト(`.tmvdfa` / `.tmvdtm`)で保存し、あとから読み込める。
 
-詳細は [`docs/architecture.md`](docs/architecture.md)、両者が共有する JSON 仕様は [`docs/contract.md`](docs/contract.md) を参照。
+## 収録している例(`example/`)
+
+ダウンロードして「読込」から開ける。詳細は [`example/README.md`](example/README.md)。
+
+| ファイル | 種別 | テーマ |
+|---|---|---|
+| `dfa-divisible-by-3.tmvdfa` | DFA | 正則言語(2進で 3 の倍数) |
+| `dfa-even-a-tri-b.tmvdfa` | DFA | 複雑な DFA(積構成・6 状態) |
+| `dtm-palindrome.tmvdtm` | DTM | 非正則言語(回文) |
+| `dtm-subset-sum.tmvdtm` | DTM | **NP 完全**を総当たり(指数時間) |
+| `dtm-binary-adder.tmvdtm` | DTM | **論理回路**(リップルキャリー加算器) |
+| `dtm-collatz.tmvdtm` | DTM | **半決定性**(コラッツ、停止性は未解決) |
+| `accdfa.tmvdtm` | DTM | 万能(任意の DFA を実行する) |
+
+## ローカルで動かす
+
+サーバ不要。いずれの方法でも同じアプリが動く。
+
+- **公開版をブラウザで開く**(上記 URL)。
+- **開発サーバ**: `make web-dev` → http://localhost:5173
+- **ビルドして配信 / 直接開く**: `make web-build` → 生成された `web/dist/` を任意の静的サーバ
+  (`npx serve web/dist` 等)で配信、または `web/dist/index.html` をブラウザで直接開く。
+
+## 仕組み
+
+- **1 ステップ実行**(DFA / DTM の遷移意味論・テープ機構)は [`web/src/engine/step.ts`](web/src/engine/step.ts)
+  に実装され、ブラウザ内で完結する。フロント(React)はその結果を履歴に貯めて再生する。
+- **Haskell 実装**([`engine/`](engine/))は「1 ステップ関数」の**参照実装**として維持している。
+  契約のゴールデントレース([`fixtures/traces/`](fixtures/traces/))で TypeScript 移植が同じ列を
+  出すことを検証しており(`web/src/engine/step.test.ts`)、実行時には不要。
+- 設計は [`docs/architecture.md`](docs/architecture.md)、共有 JSON 仕様は [`docs/contract.md`](docs/contract.md)。
 
 ## 技術スタック
 
 | 分類 | 採用 |
 |---|---|
-| タスクランナー | Make |
-| 実行環境 | Docker (compose) |
-| バックエンド | Haskell + Scotty + aeson |
 | フロント | Vite + React + TypeScript / pnpm |
 | 可視化 | React Flow(状態遷移図)/ SVG + motion(テープ) |
-| その他 | Zustand・Zod・Tailwind CSS・Biome・Vitest |
+| 状態・検証・整形 | Zustand・Zod・Tailwind CSS・Biome・Vitest |
+| 参照実装(任意) | Haskell + Scotty + aeson |
+| タスク・実行環境 | Make + Docker (compose) |
 
-## リポジトリ構成
-
-```
-docs/       設計ドキュメント(architecture / contract)
-fixtures/   契約の実例(機械 spec・ゴールデントレース)
-engine/     Haskell バックエンド(予定)
-web/        フロントエンド(予定)
-```
-
-## エンジンを動かす
+## 開発
 
 すべて Docker コンテナ内で完結する(タスクは `make`。一覧は `make help`)。
 
-- `make engine-test` — エンジンのテスト(ゴールデントレース再現含む)
-- `make engine-serve` — HTTP サーバを起動(`http://localhost:3000`。`PORT` で変更可)
+- `make web-dev` — 開発サーバ(http://localhost:5173)
+- `make web-typecheck` / `make web-test` / `make web-check` — 型・テスト・整形/lint
+- `make web-build` — 本番ビルド(`web/dist/`)
+- `make engine-test` — 参照実装(Haskell)のテスト(ゴールデントレース再現含む)
 
-HTTP エンドポイントはステートレス(詳細は [`docs/contract.md`](docs/contract.md) §4)。
+## 公開(GitHub Pages)
 
-- `POST /api/dfa/step` — body `{ "machine": DFASpec, "config": DFAConfig }` → StepResult
-- `POST /api/dtm/step` — body `{ "machine": DTMSpec, "config": DTMConfig }` → StepResult
-- `GET /health` — 稼働確認
-
-## 開発ステージ
-
-小さく積んでレビューしやすくする(詳細は [`docs/architecture.md`](docs/architecture.md))。
-
-- [x] 1. 契約 — JSON 仕様を docs + fixtures で確定
-- [x] 2. エンジン中核 — spec→遷移関数のアダプタ + 1 ステップ実行 + CLI
-- [x] 3. HTTP — Scotty で `/api/{dfa,dtm}/step` を公開
-- [ ] 4. フロント骨組み — fixture を再生する UI
-- [ ] 5. API 接続
-- [ ] 6. 描画と編集 — DFA 状態遷移図 / DTM テープ / エディタ
+`main` への push で [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) が
+`web/` をビルドして GitHub Pages へ自動デプロイする。**初回のみ**リポジトリの
+**Settings → Pages → Build and deployment → Source** を「**GitHub Actions**」に設定する
+(未設定だとデプロイジョブが失敗する)。以降は push で自動更新される。
